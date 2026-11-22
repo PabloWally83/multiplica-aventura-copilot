@@ -13,6 +13,12 @@ Aplicación web estática, en español, para que un niño de 8 años practique l
 - Persistencia en `localStorage`, funcionamiento offline y diseño responsive.
 - Sonido opcional y soporte para `prefers-reduced-motion`.
 
+## Corrección 1.0.1
+
+- Los controles del modal de nivel funcionan mediante delegación de eventos, incluido **1. Descubrir**.
+- Los clics dentro del diálogo ya no se confunden con clics sobre el fondo oscuro.
+- El service worker toma la versión nueva de los archivos al publicar y conserva el modo offline como respaldo.
+
 ## Ejecutar localmente
 
 No requiere compilación ni backend:
@@ -32,6 +38,8 @@ También se puede abrir `index.html` directamente, aunque el modo offline necesi
 5. Desplegar.
 
 También puede ejecutarse `vercel` desde esta carpeta si la CLI está instalada.
+
+Después de reemplazar los archivos en GitHub, Vercel desplegará la corrección automáticamente. Si la aplicación ya estaba abierta, recargá la página una vez para activar el service worker actualizado.
 
 ## Privacidad
 

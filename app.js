@@ -178,7 +178,7 @@
   function openLevel(n) {
     const l = levelState(n);
     modalRoot.innerHTML = `<div class="modal-backdrop" data-action="close-modal">
-      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="level-title" onclick="event.stopPropagation()">
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="level-title">
         <div class="mascot"><span>${n}</span></div>
         <p class="eyebrow">NIVEL ${n}</p><h2 id="level-title">Tabla del ${n}</h2>
         <p>Para dominarla, completá las tres etapas en orden.</p>
@@ -188,8 +188,9 @@
           ${stageItem('🧠', '3. Desafío mixto', `12 ejercicios con tablas del 1 al ${n} · mínimo 80%.`, l.completed, l.practiceBest >= PASS_SCORE && !l.completed, 'start-challenge', n, l.challengeBest)}
         </div>
         ${l.completed ? `<button class="primary-btn full" data-action="start-challenge" data-level="${n}">Volver a jugar</button>` : ''}
-        <button class="link-btn" data-action="close-modal" style="margin-top:16px">Cerrar</button>
+         <button class="link-btn" data-action="close-modal" style="margin-top:16px">Cerrar</button>
       </section></div>`;
+    requestAnimationFrame(() => modalRoot.querySelector('.stage-item:not(:disabled), [data-action="close-modal"]')?.focus());
   }
 
   function stageItem(icon, title, description, complete, active, action, n, best = null) {
@@ -636,10 +637,19 @@
   }
 
   document.addEventListener('click', event => {
-    const button = event.target.closest('[data-action]');
-    if (!button || button.disabled) return;
-    const action = button.dataset.action;
-    const n = Number(button.dataset.level);
+    const origin = event.target;
+    if (!origin || typeof origin.closest !== 'function') return;
+    const control = origin.closest('[data-action]');
+    if (!control || control.disabled) return;
+
+    // A click on the dark backdrop closes the dialog. A click on empty space
+    // inside the dialog must not be mistaken for a backdrop click. Keeping
+    // this rule here lets every button inside the modal bubble to this single
+    // delegated handler (including “1. Descubrir”).
+    if (control.classList.contains('modal-backdrop') && origin !== control) return;
+
+    const action = control.dataset.action;
+    const n = Number(control.dataset.level);
     const actions = {
       home: () => { modalRoot.innerHTML = ''; renderHome(); },
       review: renderReview,
@@ -656,7 +666,7 @@
       'lesson-back': () => completeLessonStep('back'),
       'exit-lesson': exitActivity,
       'exit-quiz': exitActivity,
-      answer: () => answerQuestion(button.dataset.value),
+      answer: () => answerQuestion(control.dataset.value),
       'next-question': nextQuestion,
       'retry-quiz': retryQuiz,
       'toggle-sound': () => { state.sound = !state.sound; saveState(); renderRewards(); },

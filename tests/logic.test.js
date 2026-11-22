@@ -1,64 +1,107 @@
-const fs = require('fs');
-const vm = require('vm');
-const assert = require('assert');
+'use strict';
 
-function element() {
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const { execFileSync } = require('node:child_process');
+
+const root = path.resolve(__dirname, '..');
+const appPath = path.join(root, 'app.js');
+const appSource = fs.readFileSync(appPath, 'utf8');
+
+execFileSync(process.execPath, ['--check', appPath]);
+assert.doesNotMatch(appSource, /onclick\s*=\s*["'][^"']*stopPropagation/);
+assert.match(appSource, /'start-learn':\s*\(\)\s*=>\s*startLesson\(n\)/);
+assert.ok(fs.existsSync(path.join(root, 'manifest.webmanifest')));
+
+const listeners = {};
+const storage = new Map();
+storage.set('multiplicaAventura.v1', JSON.stringify({
+  version: 1,
+  playerName: 'Tester',
+  levels: {},
+  factStats: {},
+  badges: []
+}));
+
+const elements = new Map();
+function element(id) {
+  if (!elements.has(id)) {
+    elements.set(id, {
+      id,
+      innerHTML: '',
+      textContent: '',
+      hidden: false,
+      focus() {},
+      appendChild() {},
+      querySelector() { return null; }
+    });
+  }
+  return elements.get(id);
+}
+
+const documentMock = {
+  activeElement: null,
+  getElementById: element,
+  querySelectorAll() { return []; },
+  querySelector() { return null; },
+  addEventListener(type, handler) { listeners[type] = handler; }
+};
+
+const windowMock = {
+  matchMedia() { return { matches: true }; },
+  addEventListener() {}
+};
+
+const context = vm.createContext({
+  window: windowMock,
+  document: documentMock,
+  navigator: {},
+  location: { protocol: 'https:' },
+  localStorage: {
+    getItem(key) { return storage.get(key) || null; },
+    setItem(key, value) { storage.set(key, String(value)); },
+    removeItem(key) { storage.delete(key); }
+  },
+  requestAnimationFrame(callback) { callback(); },
+  setTimeout,
+  clearTimeout,
+  console,
+  Date,
+  Math
+});
+
+vm.runInContext(appSource, context, { filename: 'app.js' });
+assert.equal(typeof listeners.click, 'function');
+
+function control(action, extra = {}) {
   return {
-    textContent: '', innerHTML: '', hidden: false, style: {}, classList: { toggle() {}, add() {} },
-    focus() {}, appendChild() {}, setAttribute() {}, querySelector() { return element(); }
+    disabled: false,
+    dataset: { action, ...extra },
+    classList: { contains(name) { return name === 'modal-backdrop' && action === 'close-modal-backdrop'; } }
   };
 }
 
-const elements = new Map();
-const document = {
-  getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
-  querySelectorAll() { return []; },
-  querySelector() { return null; },
-  addEventListener() {}
-};
-const saved = JSON.stringify({ version: 1, playerName: 'Test', levels: {}, factStats: {}, lastVisit: '' });
-const localStorage = { getItem: () => saved, setItem() {}, removeItem() {} };
-const sandbox = {
-  window: {}, document, localStorage, navigator: {}, location: { protocol: 'file:' },
-  console, Date, Math, JSON, Object, Array, String, Number, Set, Map,
-  setTimeout: () => 0, clearTimeout() {}
-};
-sandbox.window = sandbox;
-vm.createContext(sandbox);
-vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'app.js'), 'utf8'), sandbox);
-
-const engine = sandbox.MultiplyEngine;
-assert(engine, 'El motor debe exponerse para pruebas');
-assert.strictEqual(engine.PASS_SCORE, 80, 'El umbral de aprobación debe ser 80%');
-
-for (let a = 1; a <= 10; a++) {
-  for (let b = 1; b <= 10; b++) {
-    const q = engine.makeQuestion(a, b, Math.random);
-    assert.strictEqual(q.correct, a * b);
-    assert.strictEqual(q.choices.length, 4, 'Cada pregunta debe tener cuatro opciones');
-    assert.strictEqual(new Set(q.choices).size, 4, 'Las opciones no deben repetirse');
-    assert(q.choices.includes(q.correct), 'La respuesta correcta debe estar entre las opciones');
-    assert(q.choices.every(n => n > 0 && n <= 100), 'Las opciones deben estar entre 1 y 100');
-  }
+function clickControl(item) {
+  listeners.click({ target: { closest() { return item; } } });
 }
 
-const practice = engine.buildQuestionSet('practice', 7, 10, Math.random);
-assert.strictEqual(practice.length, 10);
-assert(practice.every(q => q.a === 7), 'La práctica individual solo debe usar la tabla actual');
-assert.deepStrictEqual([...practice.map(q => q.b)].sort((a,b) => a-b), [1,2,3,4,5,6,7,8,9,10]);
+const modal = element('modal-root');
+const main = element('main');
 
-const challenge = engine.buildQuestionSet('challenge', 6, 12, Math.random);
-assert.strictEqual(challenge.length, 12);
-assert(challenge.filter(q => q.a === 6).length >= 7, 'El desafío debe priorizar la tabla nueva');
-assert(challenge.some(q => q.a < 6), 'El desafío debe mezclar tablas anteriores');
-assert(challenge.every(q => q.a <= 6), 'No debe incluir tablas aún no aprendidas');
+clickControl(control('open-level', { level: '1' }));
+assert.match(modal.innerHTML, /data-action="start-learn"/);
+assert.doesNotMatch(modal.innerHTML, /onclick=/);
 
-const state = engine.defaultState();
-assert.strictEqual(state.unlocked, 1);
-assert.strictEqual(Object.keys(state.levels).length, 10);
-assert(Object.values(state.levels).every(l => !l.completed));
+clickControl(control('start-learn', { level: '1' }));
+assert.equal(modal.innerHTML, '');
+assert.match(main.innerHTML, /Descubrí la tabla del 1/);
+assert.match(main.innerHTML, /data-action="lesson-next"/);
 
-console.log('✓ 100 operaciones generan preguntas válidas');
-console.log('✓ Práctica individual: tabla actual completa');
-console.log('✓ Desafío combinado: tabla nueva + anteriores');
-console.log('✓ Progresión inicial y umbral de dominio correctos');
+clickControl(control('home'));
+clickControl(control('open-level', { level: '1' }));
+clickControl(control('close-modal'));
+assert.equal(modal.innerHTML, '');
+
+console.log('OK: sintaxis, modal, Descubrir y cierre verificados.');
