@@ -1,58 +1,44 @@
-# Multiplica Aventura — versión acumulativa
+# Multiplica Aventura
 
-Aplicación web estática, en español, para aprender las tablas del 1 al 10 mediante una aventura progresiva. Esta entrega reúne en una sola base todos los cambios funcionales y visuales solicitados.
+Aplicación web estática, en español, para que un niño de 8 años practique las tablas del 1 al 10 como un juego.
 
-## Funciones incluidas
+## Qué incluye
 
-- Tablas del **1 al 10**, con desbloqueo progresivo.
-- Tres etapas por nivel: **Descubrir**, **Practicar** y **Desafío mixto**.
-- Modal de nivel corregido: todos sus botones funcionan mediante delegación de eventos.
-- Elección inicial entre completar todo de una vez o distribuir las tablas entre **2 y 10 días**.
-- Plan equilibrado que se actualiza de acuerdo con la elección guardada.
-- Respuesta mediante **opciones múltiples** o **carga manual**.
-- Opciones identificadas con **A, B, C y D fuera del recuadro numérico**.
-- Dificultades configurables: **Tranquilo 70%**, **Normal 80%** y **Experto 90%**.
-- Explicación visual separada de los operandos: número que se repite y cantidad de veces.
-- Resultado detallado de cada operación: respuesta ingresada, respuesta correcta y estado.
-- Sonidos musicales, animaciones de acierto/error, confeti y fuegos artificiales.
-- Botón independiente **Ajustes**, separado de **Premios**.
-- **Modo oscuro persistente** dentro de Ajustes.
-- Repaso inteligente, XP, estrellas, rachas, insignias y progreso visual.
-- Persistencia compatible con el progreso anterior en `localStorage`.
-- Diseño responsive, funcionamiento offline y soporte para `prefers-reduced-motion`.
-
-## Reemplazar el repositorio actual
-
-Subí **el contenido de esta carpeta directamente a la raíz** del repositorio `multiplica-aventura-copilot`, reemplazando los archivos existentes. No subas una carpeta contenedora adicional.
-
-Eliminá del repositorio, si todavía existen, los artefactos antiguos `served-index.html` y `http-test.log`.
+- Progresión bloqueada: una tabla por nivel.
+- Tres etapas: descubrimiento, práctica individual y desafío combinado.
+- Umbral de dominio del 80% para desbloquear el siguiente nivel.
+- Repetición espaciada de operaciones débiles y repaso inteligente.
+- XP, estrellas, rachas, insignias, confeti y progreso visual.
+- Plan flexible: todas las tablas de una vez o distribuidas entre 2 y 10 días.
+- Resultados operación por operación al terminar cada desafío mixto.
+- Respuestas configurables: opciones múltiples o ingreso manual.
+- Tres dificultades: Tranquilo (70%), Normal (80%) y Experto (90%).
+- Sonidos musicales, fuegos artificiales de acierto y celebración de nivel.
+- Pantalla independiente de Ajustes, accesible desde la navegación principal.
+- Explicaciones visuales que distinguen el número repetido de la cantidad de veces.
+- Persistencia en `localStorage`, funcionamiento offline y diseño responsive.
+- Sonido opcional y soporte para `prefers-reduced-motion`.
 
 ## Ejecutar localmente
 
 No requiere compilación ni backend:
 
 ```bash
-npm run dev
+npx serve .
 ```
 
-## Verificar
-
-```bash
-npm test
-```
-
-La prueba valida sintaxis, configuración, generación de ejercicios y marcadores de regresión para todas las funciones acumuladas.
+También se puede abrir `index.html` directamente, aunque el modo offline necesita un servidor local.
 
 ## Publicar en Vercel
 
-1. Subir los archivos a la raíz del repositorio GitHub.
-2. Importar o mantener conectado ese repositorio en Vercel.
-3. Usar **Other** como framework.
-4. No configurar build command ni output directory.
-5. Desplegar y realizar una recarga forzada una vez (`Ctrl + F5`).
+1. Subir esta carpeta a un repositorio Git.
+2. Importar el repositorio en Vercel.
+3. Elegir **Other** como framework.
+4. No configurar build command; usar `.` como output directory.
+5. Desplegar.
 
-El service worker y los encabezados de Vercel usan una versión de caché nueva para evitar que el navegador conserve archivos anteriores.
+También puede ejecutarse `vercel` desde esta carpeta si la CLI está instalada.
 
 ## Privacidad
 
-No hay cuentas, publicidad ni analítica. El nombre, las preferencias y el progreso quedan guardados únicamente en el navegador del dispositivo.
+No hay cuentas ni analítica. Nombre y progreso quedan guardados solo en el navegador del dispositivo.

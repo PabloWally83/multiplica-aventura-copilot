@@ -56,9 +56,10 @@
   const modalRoot = document.getElementById('modal-root');
 
   function applyTheme() {
-    document.documentElement.dataset.theme = state.darkMode ? 'dark' : 'light';
-    document.documentElement.style.colorScheme = state.darkMode ? 'dark' : 'light';
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', state.darkMode ? '#1f1c2b' : '#6c4cff');
+    const dark = state.darkMode === true;
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#191720' : '#6c4cff');
   }
 
   function localDateKey(date = new Date()) {
