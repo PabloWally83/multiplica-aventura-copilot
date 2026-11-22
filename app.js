@@ -3,12 +3,13 @@
 
   const STORAGE_KEY = 'multiplicaAventura.v1';
   const PASS_SCORE = 80;
+  const DIFFICULTIES = { tranquilo: 70, normal: 80, experto: 90 };
+  const ANSWER_LETTERS = ['A', 'B', 'C', 'D'];
   const TABLES = 10;
   const PRACTICE_LENGTH = 10;
   const CHALLENGE_LENGTH = 12;
   const REVIEW_LENGTH = 10;
   const DAY_MS = 86400000;
-  const ANSWER_LABELS = ['A', 'B', 'C', 'D'];
 
   const defaultState = () => ({
     version: 1,
@@ -22,6 +23,10 @@
     sessionDate: localDateKey(),
     sound: true,
     darkMode: false,
+    answerMode: 'multiple',
+    difficulty: 'normal',
+    planMode: 'distributed',
+    planDays: 3,
     unlocked: 1,
     levels: Object.fromEntries(Array.from({ length: TABLES }, (_, i) => [i + 1, {
       learned: false,
@@ -73,7 +78,17 @@
 
   function saveState() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    applyTheme();
     updateTopbar();
+  }
+
+  function currentPassScore() {
+    return DIFFICULTIES[state.difficulty] || PASS_SCORE;
+  }
+
+  function applyTheme() {
+    document.documentElement.dataset.theme = state.darkMode ? 'dark' : 'light';
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', state.darkMode ? '#171526' : '#6c4cff');
   }
 
   function updateVisitStreak() {
@@ -110,13 +125,6 @@
     document.getElementById('review-dot').hidden = due === 0;
   }
 
-  function applyTheme() {
-    const dark = Boolean(state.darkMode);
-    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-    document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#171526' : '#6c4cff');
-  }
-
   function setActiveNav(name) {
     document.querySelectorAll('.nav-item').forEach(button => button.classList.toggle('active', button.dataset.action === name));
   }
@@ -125,11 +133,30 @@
     return Object.values(state.levels).filter(l => l.completed).length;
   }
 
+  function planGroups() {
+    if (state.planMode === 'all') return [Array.from({ length: TABLES }, (_, i) => i + 1)];
+    const days = Math.max(2, Math.min(10, Number(state.planDays) || 3));
+    const groups = [];
+    let next = 1;
+    for (let day = 0; day < days; day++) {
+      const size = Math.floor(TABLES / days) + (day < TABLES % days ? 1 : 0);
+      groups.push(Array.from({ length: size }, () => next++));
+    }
+    return groups;
+  }
+
   function todayTarget() {
-    const count = completedCount();
-    if (count < 3) return { day: 1, tables: '1, 2 y 3', target: 3 };
-    if (count < 7) return { day: 2, tables: '4, 5, 6 y 7', target: 7 };
-    return { day: 3, tables: '8, 9 y 10', target: 10 };
+    const groups = planGroups();
+    const pendingIndex = groups.findIndex(group => group.some(n => !levelState(n).completed));
+    const index = pendingIndex === -1 ? groups.length - 1 : pendingIndex;
+    const current = groups[index] || groups[groups.length - 1];
+    return {
+      day: index + 1,
+      totalDays: groups.length,
+      tables: current.join(current.length === 2 ? ' y ' : ', ').replace(/, ([^,]*)$/, ' y $1'),
+      target: Math.max(...current),
+      allAtOnce: state.planMode === 'all'
+    };
   }
 
   function renderHome() {
@@ -157,7 +184,7 @@
     main.innerHTML = `
       <section class="hero">
         <div class="hero-row">
-          <div><p class="eyebrow">DÍA ${target.day} DE 3</p><h1>¡Hola, ${escapeHtml(state.playerName || 'campeón')}!</h1><p>${done === TABLES ? '¡Dominaste todos los mundos! Seguí repasando para que no se escape ninguna tabla.' : `Tu misión de hoy: conquistar las tablas ${target.tables}.`}</p></div>
+          <div><p class="eyebrow">${target.allAtOnce ? 'RUTA COMPLETA' : `DÍA ${target.day} DE ${target.totalDays}`}</p><h1>¡Hola, ${escapeHtml(state.playerName || 'campeón')}!</h1><p>${done === TABLES ? '¡Dominaste todos los mundos! Seguí repasando para que no se escape ninguna tabla.' : `Tu misión de hoy: conquistar las tablas ${target.tables}.`}</p></div>
           <div class="goal-ring" style="--progress:${goal * 120}deg"><div class="goal-ring-inner"><strong>${goal}/3</strong><small>SESIONES</small></div></div>
         </div>
       </section>
@@ -174,27 +201,28 @@
   function stageSubtitle(n) {
     const l = levelState(n);
     if (!l.learned) return 'Primero descubrimos cómo funciona';
-    if (l.practiceBest < PASS_SCORE) return 'Práctica solo esta tabla';
+    if (l.practiceBest < currentPassScore()) return `Práctica solo esta tabla · meta ${currentPassScore()}%`;
     return 'Desafío mezclado con tablas anteriores';
   }
 
   function levelProgress(n) {
     const l = levelState(n);
     if (l.completed) return 100;
-    return Math.round((l.learned ? 25 : (l.lessonStep / 10) * 25) + Math.min(35, l.practiceBest * .35) + Math.min(40, l.challengeBest * .4));
+    return Math.round((l.learned ? 25 : (l.lessonStep / 10) * 25) + Math.min(35, l.practiceBest / currentPassScore() * 35) + Math.min(40, l.challengeBest / currentPassScore() * 40));
   }
 
   function openLevel(n) {
     const l = levelState(n);
-    modalRoot.innerHTML = `<div class="modal-backdrop" data-modal-backdrop>
+    const pass = currentPassScore();
+    modalRoot.innerHTML = `<div class="modal-backdrop" data-action="close-modal">
       <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="level-title">
         <div class="mascot"><span>${n}</span></div>
         <p class="eyebrow">NIVEL ${n}</p><h2 id="level-title">Tabla del ${n}</h2>
         <p>Para dominarla, completá las tres etapas en orden.</p>
         <div class="stage-list">
           ${stageItem('👀', '1. Descubrir', 'Mirá patrones y entendé cada cuenta.', l.learned, !l.learned, 'start-learn', n)}
-          ${stageItem('🎯', '2. Practicar', '10 ejercicios solo de esta tabla · mínimo 80%.', l.practiceBest >= PASS_SCORE, l.learned && l.practiceBest < PASS_SCORE, 'start-practice', n, l.practiceBest)}
-          ${stageItem('🧠', '3. Desafío mixto', `12 ejercicios con tablas del 1 al ${n} · mínimo 80%.`, l.completed, l.practiceBest >= PASS_SCORE && !l.completed, 'start-challenge', n, l.challengeBest)}
+          ${stageItem('🎯', '2. Practicar', `10 ejercicios solo de esta tabla · mínimo ${pass}%.`, l.practiceBest >= pass, l.learned && l.practiceBest < pass, 'start-practice', n, l.practiceBest)}
+          ${stageItem('🧠', '3. Desafío mixto', `12 ejercicios con tablas del 1 al ${n} · mínimo ${pass}%.`, l.completed, l.practiceBest >= pass && !l.completed, 'start-challenge', n, l.challengeBest)}
         </div>
         ${l.completed ? `<button class="primary-btn full" data-action="start-challenge" data-level="${n}">Volver a jugar</button>` : ''}
         <button class="link-btn" data-action="close-modal" style="margin-top:16px">Cerrar</button>
@@ -226,7 +254,12 @@
       <section class="lesson-card">
         <div class="mascot"><span>${table}</span></div>
         <p class="eyebrow">SUMAR ${table}, ${factor} ${factor === 1 ? 'VEZ' : 'VECES'}</p>
-        <div class="fact-big">${table} × ${factor} = <span class="fact-result">${result}</span></div>
+        <div class="operand-explainer" aria-label="${table} multiplicado por ${factor}">
+          <div class="operand-card repeated"><span class="operand-value">${table}</span><small>Número que repetimos</small></div>
+          <span class="times-sign" aria-hidden="true">×</span>
+          <div class="operand-card times"><span class="operand-value">${factor}</span><small>Cantidad de veces</small></div>
+        </div>
+        <div class="fact-big compact">${table} × ${factor} = <span class="fact-result">${result}</span></div>
         <div class="number-groups">${Array.from({ length: factor }, () => `<span class="number-group">${table}</span>`).join('<span aria-hidden="true">+</span>')}</div>
         <h2>${lessonTip(table, factor)}</h2><p>${table} multiplicado por ${factor} es lo mismo que sumar ${table} ${factor} ${factor === 1 ? 'vez' : 'veces'}.</p>
         <div class="lesson-actions">
@@ -278,7 +311,7 @@
   function startQuiz(mode, table) {
     modalRoot.innerHTML = '';
     const count = mode === 'practice' ? PRACTICE_LENGTH : mode === 'challenge' ? CHALLENGE_LENGTH : REVIEW_LENGTH;
-    quiz = { mode, table, questions: buildQuestionSet(mode, table, count), index: 0, correct: 0, answerStreak: 0, bestStreak: 0, answered: false, mistakes: [] };
+    quiz = { mode, table, questions: buildQuestionSet(mode, table, count), index: 0, correct: 0, answerStreak: 0, bestStreak: 0, answered: false, mistakes: [], results: [] };
     view = 'quiz';
     setActiveNav(mode === 'review' ? 'review' : '');
     renderQuiz();
@@ -334,6 +367,9 @@
     const q = quiz.questions[quiz.index];
     const total = quiz.questions.length;
     const progress = (quiz.index / total) * 100;
+    const answerArea = state.answerMode === 'manual'
+      ? `<div class="manual-answer"><label for="manual-result">Escribí el resultado</label><div><input id="manual-result" type="number" inputmode="numeric" min="0" max="100" autocomplete="off" aria-label="Resultado" /><button class="primary-btn" data-action="answer-manual">Comprobar</button></div></div>`
+      : `<div class="answers">${q.choices.map((answer, i) => `<div class="answer-option"><span class="answer-letter" aria-hidden="true">${ANSWER_LETTERS[i]}</span><button class="answer-btn" data-action="answer" data-value="${answer}" aria-label="Opción ${ANSWER_LETTERS[i]}: ${answer}">${answer}</button></div>`).join('')}</div>`;
     main.innerHTML = `<section class="quiz-shell">
       <div class="quiz-top">
         <button class="icon-btn" data-action="exit-quiz" aria-label="Salir del ejercicio">✕</button>
@@ -343,29 +379,37 @@
       <div class="quiz-body">
         <p class="prompt-label">${quiz.mode === 'practice' ? `Practicá la tabla del ${quiz.table}` : quiz.mode === 'challenge' ? 'Desafío: ¡ahora están mezcladas!' : 'Repaso inteligente'}</p>
         <div class="question">${q.a} × ${q.b} = <span class="question-mark">?</span></div>
-        <div class="answers" aria-label="Opciones de respuesta">${q.choices.map((answer, i) => {
-          const label = ANSWER_LABELS[i];
-          return `<div class="answer-option"><span class="answer-label" aria-hidden="true">${label}</span><button class="answer-btn" data-action="answer" data-value="${answer}" aria-label="Opción ${label}: ${answer}" aria-keyshortcuts="${label}">${answer}</button></div>`;
-        }).join('')}</div>
+        ${answerArea}
         <div id="feedback-slot"></div>
       </div>
     </section>`;
     main.focus({ preventScroll: true });
+    if (state.answerMode === 'manual') setTimeout(() => document.getElementById('manual-result')?.focus(), 0);
   }
 
   function answerQuestion(value) {
     if (quiz.answered) return;
+    if (value === '' || value === null || value === undefined || !Number.isFinite(Number(value))) {
+      showToast('Escribí una respuesta antes de continuar');
+      document.getElementById('manual-result')?.focus();
+      return;
+    }
     quiz.answered = true;
     const q = quiz.questions[quiz.index];
-    const correct = Number(value) === q.correct;
+    const given = Number(value);
+    const correct = given === q.correct;
     const buttons = [...document.querySelectorAll('.answer-btn')];
     buttons.forEach(button => {
       button.disabled = true;
       const v = Number(button.dataset.value);
       if (v === q.correct) button.classList.add('correct');
-      else if (v === Number(value)) button.classList.add('wrong');
+      else if (v === given) button.classList.add('wrong');
     });
+    document.querySelectorAll('.manual-answer input,.manual-answer button').forEach(control => { control.disabled = true; });
+    quiz.results.push({ a: q.a, b: q.b, given, correct: q.correct, ok: correct });
     state.totalAnswers++;
+    const quizBody = document.querySelector('.quiz-body');
+    quizBody?.classList.add(correct ? 'answer-celebrate' : 'answer-shake');
     if (correct) {
       quiz.correct++;
       quiz.answerStreak++;
@@ -375,6 +419,7 @@
       state.xp += 2 + Math.min(3, Math.floor(quiz.answerStreak / 3));
       updateFact(q.a, q.b, true);
       playTone('good');
+      launchFireworks(false);
     } else {
       quiz.answerStreak = 0;
       quiz.mistakes.push(q);
@@ -383,7 +428,7 @@
     }
     saveState();
     const feedback = document.getElementById('feedback-slot');
-    feedback.innerHTML = `<div class="feedback ${correct ? 'good' : 'bad'}"><div><h3>${correct ? praise() : 'Casi, ¡seguimos!'}</h3><p>${correct ? `${q.a} × ${q.b} = ${q.correct}` : `La respuesta es ${q.correct}. Pensá: ${Array.from({length:q.b},()=>q.a).join(' + ')}.`}</p></div><button class="primary-btn" data-action="next-question">Continuar</button></div>`;
+    feedback.innerHTML = `<div class="feedback ${correct ? 'good' : 'bad'}"><div><h3>${correct ? praise() : 'Casi, ¡seguimos!'}</h3><p>${correct ? `${q.a} × ${q.b} = ${q.correct}` : `Respondiste ${given}. La respuesta es ${q.correct}. Pensá: ${Array.from({length:q.b},()=>q.a).join(' + ')}.`}</p></div><button class="primary-btn" data-action="next-question">Continuar</button></div>`;
     feedback.querySelector('button').focus();
   }
 
@@ -404,7 +449,8 @@
 
   function finishQuiz() {
     const score = Math.round(quiz.correct / quiz.questions.length * 100);
-    const passed = quiz.mode === 'review' || score >= PASS_SCORE;
+    const passScore = currentPassScore();
+    const passed = quiz.mode === 'review' || score >= passScore;
     const earnedStars = quiz.mode === 'review' ? (score >= 80 ? 1 : 0) : passed ? (score === 100 ? 3 : score >= 90 ? 2 : 1) : 0;
     const table = quiz.table;
     if (quiz.mode === 'practice') {
@@ -420,7 +466,7 @@
     state.sessionsToday = Math.min(3, state.sessionsToday + 1);
     unlockBadges();
     saveState();
-    if (passed && quiz.mode !== 'review') launchConfetti();
+    if (passed && quiz.mode !== 'review') { launchConfetti(); launchFireworks(true); }
     playTone(passed ? 'win' : 'bad');
     renderResults(score, passed, earnedStars);
   }
@@ -429,6 +475,7 @@
     view = 'result';
     setActiveNav(quiz.mode === 'review' ? 'review' : '');
     const mode = quiz.mode;
+    const passScore = currentPassScore();
     let title;
     if (mode === 'review') title = score >= 80 ? '¡Repaso completado!' : '¡Tu memoria se está entrenando!';
     else title = passed ? (mode === 'challenge' ? '¡Nivel superado!' : '¡Práctica aprobada!') : '¡Una vuelta más!';
@@ -436,7 +483,8 @@
       ? 'Cada repaso hace que las respuestas aparezcan más rápido.'
       : passed
         ? (mode === 'practice' ? 'Ahora podés probar el desafío con tablas mezcladas.' : quiz.table === TABLES ? '¡Dominaste las 10 tablas! Sos una leyenda de la multiplicación.' : `Desbloqueaste la tabla del ${quiz.table + 1}.`)
-        : `Necesitás ${PASS_SCORE}%. Repasaremos tus errores para que el próximo intento sea mejor.`;
+        : `Necesitás ${passScore}%. Repasaremos tus errores para que el próximo intento sea mejor.`;
+    const details = quiz.results.map((result, index) => `<tr class="${result.ok ? 'result-ok' : 'result-wrong'}"><td>${index + 1}</td><td><strong>${result.a} × ${result.b}</strong></td><td>${result.given}</td><td>${result.correct}</td><td><span aria-label="${result.ok ? 'Correcto' : 'Incorrecto'}">${result.ok ? '✅' : '❌'}</span></td></tr>`).join('');
     main.innerHTML = `<section class="result-card">
       <div class="result-emoji" aria-hidden="true">${passed ? (score === 100 ? '👑' : '🎉') : '💪'}</div>
       <p class="eyebrow">${mode === 'review' ? 'REPASO' : `TABLA DEL ${quiz.table}`}</p><h1>${title}</h1><p>${message}</p>
@@ -446,6 +494,7 @@
         <div class="result-stat"><strong>${quiz.bestStreak} 🔥</strong><small>mejor racha</small></div>
         <div class="result-stat"><strong>${quiz.mistakes.length}</strong><small>para repasar</small></div>
       </div>
+      <section class="result-details"><h2>Resultado de cada operación</h2><div class="table-scroll"><table><thead><tr><th>#</th><th>Operación</th><th>Tu respuesta</th><th>Correcta</th><th>Estado</th></tr></thead><tbody>${details}</tbody></table></div></section>
       ${resultActions(score, passed)}
     </section>`;
   }
@@ -461,7 +510,7 @@
     const errors = quiz.mistakes.length ? quiz.mistakes : quiz.questions;
     const mode = quiz.mode;
     const table = quiz.table;
-    quiz = { mode, table, questions: shuffle([...errors, ...errors]).slice(0, Math.max(6, errors.length)), index: 0, correct: 0, answerStreak: 0, bestStreak: 0, answered: false, mistakes: [] };
+    quiz = { mode, table, questions: shuffle([...errors, ...errors]).slice(0, Math.max(6, errors.length)), index: 0, correct: 0, answerStreak: 0, bestStreak: 0, answered: false, mistakes: [], results: [] };
     renderQuiz();
   }
 
@@ -530,23 +579,22 @@
   function renderPlan() {
     view = 'plan';
     setActiveNav('plan');
-    main.innerHTML = `<div class="screen-head"><div><h1>📅 Misión de 3 días</h1><p>Intensiva, pero en bloques cortos para cuidar la atención.</p></div></div>
-      <div class="plan-grid">
-        ${dayCard(1, 'Bases y confianza', 'Tablas fáciles para entender el patrón y ganar velocidad.', [1,2,3])}
-        ${dayCard(2, 'Construir conexiones', 'Usamos dobles, mitades y las tablas ya aprendidas.', [4,5,6,7])}
-        ${dayCard(3, 'El gran desafío', 'Patrones del 9 y 10, mezcla total y consolidación.', [8,9,10])}
-      </div>
-      <section class="panel" style="margin-top:16px"><h2>Ritmo recomendado por día</h2><div class="schedule">
-        <span class="schedule-time">Mañana</span><p><strong>15–20 min · Aprender</strong><br><small>Nuevas tablas, sin apuro. Pausa de 5 min al terminar.</small></p>
-        <span class="schedule-time">Tarde</span><p><strong>15–20 min · Practicar</strong><br><small>Desafíos individuales y mezclados.</small></p>
-        <span class="schedule-time">Noche</span><p><strong>10 min · Recordar</strong><br><small>Repaso inteligente, idealmente sin ayuda.</small></p>
+    const groups = planGroups();
+    const heading = state.planMode === 'all' ? 'Ruta completa' : `Misión de ${groups.length} días`;
+    const intro = state.planMode === 'all' ? 'Todas las tablas en una sola ruta, con pausas cuando las necesites.' : 'Un plan equilibrado en bloques cortos para cuidar la atención.';
+    main.innerHTML = `<div class="screen-head"><div><h1>📅 ${heading}</h1><p>${intro}</p></div></div>
+      <div class="plan-grid">${groups.map((tables, index) => dayCard(index + 1, groups.length === 1 ? 'La gran aventura' : `Etapa ${index + 1}`, groups.length === 1 ? 'Avanzá tabla por tabla y descansá cuando lo necesites.' : 'Aprendé una tabla nueva y mezclala con las anteriores.', tables)).join('')}</div>
+      <section class="panel" style="margin-top:16px"><h2>Ritmo recomendado</h2><div class="schedule">
+        <span class="schedule-time">1</span><p><strong>15–20 min · Aprender</strong><br><small>Nuevas tablas, sin apuro. Pausa de 5 min al terminar.</small></p>
+        <span class="schedule-time">2</span><p><strong>15–20 min · Practicar</strong><br><small>Desafíos individuales y mezclados.</small></p>
+        <span class="schedule-time">3</span><p><strong>10 min · Recordar</strong><br><small>Repaso inteligente, idealmente sin ayuda.</small></p>
       </div></section>
-      <section class="panel"><h3>Consejos para el adulto</h3><p class="subtle">Celebrá el esfuerzo, no solo el resultado. Si aparecen frustración o muchos errores seguidos, conviene una pausa. En tres días se puede lograr mucha práctica; para retener de verdad, continuá con repasos breves durante las semanas siguientes.</p></section>`;
+      <section class="panel"><h3>Consejos para el adulto</h3><p class="subtle">Celebrá el esfuerzo, no solo el resultado. Si aparecen frustración o muchos errores seguidos, conviene una pausa. Para retener de verdad, continuá con repasos breves durante las semanas siguientes.</p></section>`;
   }
 
   function dayCard(day, title, text, tables) {
     const done = tables.filter(n => levelState(n).completed).length;
-    return `<section class="day-card"><p class="eyebrow">DÍA ${day} · ${done}/${tables.length} COMPLETADAS</p><h2>${title}</h2><p>${text}</p><div class="day-tables">${tables.map(n => `<span>${levelState(n).completed ? '✓ ' : ''}Tabla ${n}</span>`).join('')}</div></section>`;
+    return `<section class="day-card"><p class="eyebrow">${state.planMode === 'all' ? 'RUTA ÚNICA' : `DÍA ${day}`} · ${done}/${tables.length} COMPLETADAS</p><h2>${title}</h2><p>${text}</p><div class="day-tables">${tables.map(n => `<span>${levelState(n).completed ? '✓ ' : ''}Tabla ${n}</span>`).join('')}</div></section>`;
   }
 
   const badgeDefs = [
@@ -574,11 +622,21 @@
     main.innerHTML = `<div class="screen-head"><div><h1>🏆 Sala de premios</h1><p>Todo lo que lograste con práctica y constancia.</p></div></div>
       <section class="panel reward-summary"><div class="big">👑</div><div><p class="eyebrow">AVENTURERO NIVEL ${completedCount() + 1}</p><h2>${escapeHtml(state.playerName || 'Jugador')}</h2><p class="subtle">${state.xp} XP · ${state.stars} estrellas · ${accuracy}% de aciertos</p></div></section>
       <div class="section-head"><div><h2>Insignias</h2><p>${state.badges.length} de ${badgeDefs.length} desbloqueadas</p></div></div>
-      <section class="badge-grid">${badgeDefs.map(b => `<article class="badge ${state.badges.includes(b.id) ? '' : 'locked-badge'}"><div class="badge-icon">${b.icon}</div><h3>${b.title}</h3><p>${b.text}</p></article>`).join('')}</section>
-      <div class="section-head"><div><h2>Ajustes</h2></div></div>
+      <section class="badge-grid">${badgeDefs.map(b => `<article class="badge ${state.badges.includes(b.id) ? '' : 'locked-badge'}"><div class="badge-icon">${b.icon}</div><h3>${b.title}</h3><p>${b.text}</p></article>`).join('')}</section>`;
+  }
+
+  function renderSettings() {
+    view = 'settings';
+    setActiveNav('settings');
+    const modeButton = (value, title, text) => `<button class="setting-choice ${state.answerMode === value ? 'selected' : ''}" data-action="set-answer-mode" data-value="${value}"><strong>${title}</strong><small>${text}</small></button>`;
+    const difficultyButton = (value, title) => `<button class="difficulty-choice ${state.difficulty === value ? 'selected' : ''}" data-action="set-difficulty" data-value="${value}"><strong>${title}</strong><small>${DIFFICULTIES[value]}% para aprobar</small></button>`;
+    main.innerHTML = `<div class="screen-head"><div><h1>⚙️ Ajustes</h1><p>Personalizá la aventura para aprender mejor.</p></div></div>
+      <section class="panel settings-panel"><h2>Forma de responder</h2><div class="setting-choice-grid">${modeButton('multiple','Opciones múltiples','Elegí entre A, B, C o D.')}${modeButton('manual','Respuesta manual','Escribí el resultado.')}</div></section>
+      <section class="panel settings-panel"><h2>Dificultad</h2><div class="difficulty-grid">${difficultyButton('tranquilo','Tranquilo')}${difficultyButton('normal','Normal')}${difficultyButton('experto','Experto')}</div></section>
+      <section class="panel settings-panel"><h2>Plan de aprendizaje</h2><div class="setting-choice-grid"> <button class="setting-choice ${state.planMode === 'all' ? 'selected' : ''}" data-action="set-plan-mode" data-value="all"><strong>Todo de una vez</strong><small>Una sola ruta.</small></button><button class="setting-choice ${state.planMode === 'distributed' ? 'selected' : ''}" data-action="set-plan-mode" data-value="distributed"><strong>Distribuir por días</strong><small>Entre 2 y 10 días.</small></button></div><label class="settings-select" for="settings-days">Cantidad de días <select id="settings-days" ${state.planMode === 'all' ? 'disabled' : ''}>${Array.from({length:9},(_,i)=>i+2).map(n=>`<option value="${n}" ${n===Number(state.planDays)?'selected':''}>${n} días</option>`).join('')}</select></label></section>
       <section class="panel">
-        <div class="settings-row"><span><strong>Sonidos</strong><br><small class="subtle">Efectos al responder</small></span><button class="toggle ${state.sound ? 'on' : ''}" data-action="toggle-sound" role="switch" aria-checked="${state.sound}"><span></span></button></div>
-        <div class="settings-row"><span><strong>Modo oscuro</strong><br><small class="subtle">Reduce el brillo de la pantalla</small></span><button class="toggle ${state.darkMode ? 'on' : ''}" data-action="toggle-dark-mode" role="switch" aria-checked="${state.darkMode}" aria-label="Activar o desactivar modo oscuro"><span></span></button></div>
+        <div class="settings-row"><span><strong>Sonidos musicales</strong><br><small class="subtle">Melodías al responder y completar niveles</small></span><button class="toggle ${state.sound ? 'on' : ''}" data-action="toggle-sound" role="switch" aria-checked="${state.sound}"><span></span></button></div>
+        <div class="settings-row"><span><strong>Modo oscuro</strong><br><small class="subtle">Se guarda en este dispositivo</small></span><button class="toggle ${state.darkMode ? 'on' : ''}" data-action="toggle-dark-mode" role="switch" aria-checked="${state.darkMode}"><span></span></button></div>
         <div class="settings-row"><span><strong>Reiniciar aventura</strong><br><small class="subtle">Borra el progreso de este dispositivo</small></span><button class="danger-btn" data-action="confirm-reset">Reiniciar</button></div>
       </section>`;
   }
@@ -603,6 +661,8 @@
       return;
     }
     state.playerName = name.slice(0, 16);
+    state.planMode = document.querySelector('input[name="welcome-plan"]:checked')?.value === 'all' ? 'all' : 'distributed';
+    state.planDays = Math.max(2, Math.min(10, Number(document.getElementById('welcome-days')?.value) || 3));
     saveState();
     modalRoot.innerHTML = '';
     launchConfetti();
@@ -628,40 +688,61 @@
     setTimeout(() => { root.innerHTML = ''; }, 2300);
   }
 
+  function launchFireworks(big = false) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const root = document.getElementById('confetti');
+    const colors = ['#6c4cff','#30c97b','#ffc83d','#ff5e71','#37a9ff','#ffffff'];
+    const bursts = big ? 5 : 2;
+    const particles = [];
+    for (let burst = 0; burst < bursts; burst++) {
+      const x = 18 + Math.random() * 64;
+      const y = 18 + Math.random() * 42;
+      for (let i = 0; i < (big ? 22 : 14); i++) {
+        const angle = (Math.PI * 2 * i) / (big ? 22 : 14);
+        const distance = 45 + Math.random() * (big ? 95 : 55);
+        particles.push(`<i class="firework-particle" style="left:${x}%;top:${y}%;background:${colors[(i+burst)%colors.length]};--fx:${Math.cos(angle)*distance}px;--fy:${Math.sin(angle)*distance}px;animation-delay:${burst*.13}s"></i>`);
+      }
+    }
+    root.insertAdjacentHTML('beforeend', particles.join(''));
+    setTimeout(() => root.querySelectorAll('.firework-particle').forEach(node => node.remove()), 1600);
+  }
+
   function playTone(type) {
     if (!state.sound) return;
     try {
       audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
-      const frequencies = type === 'good' ? [440, 554] : type === 'win' ? [392, 523, 659] : [220, 180];
-      frequencies.forEach((frequency, i) => {
+      const melodies = {
+        good: [[523.25,0,.13,'sine'],[659.25,.09,.16,'sine'],[783.99,.18,.2,'triangle']],
+        bad: [[293.66,0,.16,'triangle'],[246.94,.13,.22,'triangle']],
+        win: [[392,0,.16,'sine'],[523.25,.12,.18,'sine'],[659.25,.24,.18,'sine'],[783.99,.36,.32,'triangle']]
+      };
+      (melodies[type] || melodies.good).forEach(([frequency, delay, duration, wave]) => {
         const oscillator = audioContext.createOscillator();
         const gain = audioContext.createGain();
         oscillator.connect(gain); gain.connect(audioContext.destination);
-        oscillator.type = type === 'bad' ? 'triangle' : 'sine';
+        oscillator.type = wave;
         oscillator.frequency.value = frequency;
-        const start = audioContext.currentTime + i * .1;
+        const start = audioContext.currentTime + delay;
         gain.gain.setValueAtTime(.001, start);
-        gain.gain.exponentialRampToValueAtTime(.12, start + .015);
-        gain.gain.exponentialRampToValueAtTime(.001, start + .13);
-        oscillator.start(start); oscillator.stop(start + .14);
+        gain.gain.exponentialRampToValueAtTime(type === 'bad' ? .07 : .1, start + .02);
+        gain.gain.exponentialRampToValueAtTime(.001, start + duration);
+        oscillator.start(start); oscillator.stop(start + duration + .02);
       });
     } catch (_) { /* Audio is optional. */ }
   }
 
   document.addEventListener('click', event => {
-    if (event.target.matches('[data-modal-backdrop]')) {
-      modalRoot.innerHTML = '';
-      return;
-    }
     const button = event.target.closest('[data-action]');
     if (!button || button.disabled) return;
     const action = button.dataset.action;
+    if (action === 'close-modal' && button.classList.contains('modal-backdrop') && event.target !== button) return;
     const n = Number(button.dataset.level);
     const actions = {
       home: () => { modalRoot.innerHTML = ''; renderHome(); },
       review: renderReview,
       plan: renderPlan,
       rewards: renderRewards,
+      settings: renderSettings,
       'open-level': () => openLevel(n),
       'close-modal': () => { modalRoot.innerHTML = ''; },
       'start-game': startGame,
@@ -674,10 +755,14 @@
       'exit-lesson': exitActivity,
       'exit-quiz': exitActivity,
       answer: () => answerQuestion(button.dataset.value),
+      'answer-manual': () => answerQuestion(document.getElementById('manual-result')?.value),
       'next-question': nextQuestion,
       'retry-quiz': retryQuiz,
-      'toggle-sound': () => { state.sound = !state.sound; saveState(); renderRewards(); },
-      'toggle-dark-mode': () => { state.darkMode = !state.darkMode; applyTheme(); saveState(); renderRewards(); },
+      'toggle-sound': () => { state.sound = !state.sound; saveState(); renderSettings(); },
+      'toggle-dark-mode': () => { state.darkMode = !state.darkMode; saveState(); renderSettings(); },
+      'set-answer-mode': () => { state.answerMode = button.dataset.value === 'manual' ? 'manual' : 'multiple'; saveState(); renderSettings(); },
+      'set-difficulty': () => { if (DIFFICULTIES[button.dataset.value]) state.difficulty = button.dataset.value; saveState(); renderSettings(); },
+      'set-plan-mode': () => { state.planMode = button.dataset.value === 'all' ? 'all' : 'distributed'; saveState(); renderSettings(); },
       'confirm-reset': confirmReset,
       'reset-game': () => { state = defaultState(); localStorage.removeItem(STORAGE_KEY); applyTheme(); modalRoot.innerHTML = ''; renderHome(); showWelcome(); }
     };
@@ -685,10 +770,11 @@
   });
 
   document.addEventListener('keydown', event => {
-    const answerKey = event.key.toUpperCase();
-    if (view === 'quiz' && !quiz?.answered && ANSWER_LABELS.includes(answerKey)) {
-      const button = document.querySelectorAll('.answer-btn')[ANSWER_LABELS.indexOf(answerKey)];
+    if (view === 'quiz' && !quiz?.answered && state.answerMode === 'multiple' && ['a','b','c','d'].includes(event.key.toLowerCase())) {
+      const button = document.querySelectorAll('.answer-btn')[ANSWER_LETTERS.indexOf(event.key.toUpperCase())];
       button?.click();
+    } else if (view === 'quiz' && !quiz?.answered && state.answerMode === 'manual' && event.key === 'Enter' && document.activeElement?.id === 'manual-result') {
+      document.querySelector('[data-action="answer-manual"]')?.click();
     } else if (view === 'quiz' && quiz?.answered && event.key === 'Enter') {
       document.querySelector('[data-action="next-question"]')?.click();
     } else if (event.key === 'Escape' && modalRoot.innerHTML) {
@@ -698,8 +784,20 @@
     }
   });
 
+  document.addEventListener('change', event => {
+    if (event.target?.id === 'settings-days') {
+      state.planDays = Math.max(2, Math.min(10, Number(event.target.value) || 3));
+      saveState();
+      renderSettings();
+    }
+    if (event.target?.name === 'welcome-plan') {
+      const select = document.getElementById('welcome-days');
+      if (select) select.disabled = event.target.value === 'all';
+    }
+  });
+
   // Small public surface used by automated tests; gameplay stays dependency-free.
-  window.MultiplyEngine = { defaultState, makeQuestion, buildQuestionSet, shuffle, factKey, PASS_SCORE };
+  window.MultiplyEngine = { defaultState, makeQuestion, buildQuestionSet, shuffle, factKey, planGroups, currentPassScore, PASS_SCORE, DIFFICULTIES };
 
   applyTheme();
   updateVisitStreak();
