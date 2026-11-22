@@ -56,10 +56,9 @@
   const modalRoot = document.getElementById('modal-root');
 
   function applyTheme() {
-    const theme = state.darkMode ? 'dark' : 'light';
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', state.darkMode ? '#171523' : '#6c4cff');
+    document.documentElement.dataset.theme = state.darkMode ? 'dark' : 'light';
+    document.documentElement.style.colorScheme = state.darkMode ? 'dark' : 'light';
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', state.darkMode ? '#1f1c2b' : '#6c4cff');
   }
 
   function localDateKey(date = new Date()) {
@@ -388,7 +387,7 @@
         <div class="question-card"><div class="question">${q.a} × ${q.b} = <span class="question-mark">?</span></div></div>
         ${state.answerMode === 'input'
           ? `<form class="manual-answer" data-quiz-form><label for="manual-value">Escribí el resultado</label><div><input id="manual-value" inputmode="numeric" pattern="[0-9]*" min="1" max="100" maxlength="3" autocomplete="off" aria-label="Resultado de ${q.a} por ${q.b}"><button type="submit" class="primary-btn">Comprobar</button></div></form>`
-          : `<div class="answers">${q.choices.map((answer, i) => `<div class="answer-option"><span class="answer-label" aria-hidden="true">${String.fromCharCode(65 + i)}</span><button class="answer-btn" data-action="answer" data-value="${answer}" aria-label="Opción ${String.fromCharCode(65 + i)}: ${answer}">${answer}</button></div>`).join('')}</div>`}
+          : `<div class="answers">${q.choices.map((answer, i) => `<div class="answer-option"><span class="answer-letter" aria-hidden="true">${String.fromCharCode(65 + i)}</span><button class="answer-btn" data-action="answer" data-value="${answer}" aria-label="Opción ${String.fromCharCode(65 + i)}: ${answer}">${answer}</button></div>`).join('')}</div>`}
         <div id="feedback-slot"></div>
       </div>
     </section>`;
@@ -672,7 +671,7 @@
       </div><p class="setting-summary">Ahora: <strong>${config.label}</strong> · mínimo ${config.pass}% para avanzar.</p></section>
       <section class="panel"><div class="settings-row"><span><strong>Sonidos</strong><br><small class="subtle">Melodías y efectos al responder</small></span><button class="toggle ${state.sound ? 'on' : ''}" data-action="toggle-sound" role="switch" aria-checked="${state.sound}"><span></span></button></div>
         <div class="settings-row"><span><strong>Animaciones</strong><br><small class="subtle">Fuegos artificiales y movimientos</small></span><button class="toggle ${state.animations ? 'on' : ''}" data-action="toggle-animations" role="switch" aria-checked="${state.animations}"><span></span></button></div>
-        <div class="settings-row"><span><strong>Modo oscuro</strong><br><small class="subtle">Usa colores suaves para jugar con poca luz</small></span><button class="toggle ${state.darkMode ? 'on' : ''}" data-action="toggle-dark-mode" role="switch" aria-label="Modo oscuro" aria-checked="${state.darkMode}"><span></span></button></div>
+        <div class="settings-row"><span><strong>Modo oscuro</strong><br><small class="subtle">Cambia la app a colores oscuros</small></span><button class="toggle ${state.darkMode ? 'on' : ''}" data-action="toggle-dark-mode" role="switch" aria-label="Modo oscuro" aria-checked="${state.darkMode}"><span></span></button></div>
         <div class="settings-row"><span><strong>Plan de aprendizaje</strong><br><small class="subtle">${state.planDays === 1 ? 'Todo de una vez' : `Distribuido en ${state.planDays} días`}</small></span><button class="secondary-btn compact" data-action="change-plan">Cambiar</button></div>
         <div class="settings-row"><span><strong>Reiniciar aventura</strong><br><small class="subtle">Borra el progreso de este dispositivo</small></span><button class="danger-btn" data-action="confirm-reset">Reiniciar</button></div>
       </section>`;
@@ -796,7 +795,7 @@
         good: [[659, 0, .10], [784, .08, .11], [988, .17, .18]],
         bad: [[294, 0, .14], [247, .13, .20]],
         win: [[523, 0, .16], [659, .12, .16], [784, .24, .18], [1047, .40, .34]],
-        welcome: [[523, 0, .14], [659, .11, .15], [784, .23, .18], [988, .38, .28]]
+        welcome: [[523, 0, .12], [659, .10, .13], [784, .21, .18]]
       };
       (sequences[type] || sequences.good).forEach(([frequency, delay, duration], i) => {
         const oscillator = audioContext.createOscillator();
@@ -846,9 +845,9 @@
       'set-difficulty': () => { state.difficulty = button.dataset.value; saveState(); renderSettings(); showToast(`Nivel ${difficultyConfig().label}`); },
       'toggle-sound': () => { state.sound = !state.sound; saveState(); renderSettings(); if (state.sound) playTone('good'); },
       'toggle-animations': () => { state.animations = !state.animations; saveState(); renderSettings(); },
-      'toggle-dark-mode': () => { state.darkMode = !state.darkMode; applyTheme(); saveState(); renderSettings(); showToast(state.darkMode ? '🌙 Modo oscuro activado' : '☀️ Modo claro activado'); },
+      'toggle-dark-mode': () => { state.darkMode = !state.darkMode; applyTheme(); saveState(); renderSettings(); },
       'confirm-reset': confirmReset,
-      'reset-game': () => { state = defaultState(); planDraft = null; localStorage.removeItem(STORAGE_KEY); modalRoot.innerHTML = ''; renderHome(); showWelcome(); }
+      'reset-game': () => { state = defaultState(); applyTheme(); planDraft = null; localStorage.removeItem(STORAGE_KEY); modalRoot.innerHTML = ''; renderHome(); showWelcome(); }
     };
     actions[action]?.();
   });
