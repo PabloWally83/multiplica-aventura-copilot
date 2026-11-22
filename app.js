@@ -8,11 +8,7 @@
   const CHALLENGE_LENGTH = 12;
   const REVIEW_LENGTH = 10;
   const DAY_MS = 86400000;
-  const DIFFICULTIES = {
-    calm: { label: 'Tranquilo', pass: 70, practice: 8, challenge: 10, review: 8 },
-    normal: { label: 'Normal', pass: 80, practice: 10, challenge: 12, review: 10 },
-    expert: { label: 'Experto', pass: 90, practice: 12, challenge: 15, review: 12 }
-  };
+  const ANSWER_LABELS = ['A', 'B', 'C', 'D'];
 
   const defaultState = () => ({
     version: 1,
@@ -25,11 +21,6 @@
     sessionsToday: 0,
     sessionDate: localDateKey(),
     sound: true,
-    animations: true,
-    answerMode: 'choice',
-    difficulty: 'normal',
-    planConfigured: false,
-    planDays: 3,
     unlocked: 1,
     levels: Object.fromEntries(Array.from({ length: TABLES }, (_, i) => [i + 1, {
       learned: false,
@@ -49,7 +40,6 @@
   let lesson = null;
   let quiz = null;
   let audioContext = null;
-  let planDraft = null;
 
   const main = document.getElementById('main');
   const modalRoot = document.getElementById('modal-root');
@@ -127,37 +117,11 @@
     return Object.values(state.levels).filter(l => l.completed).length;
   }
 
-  function difficultyConfig() {
-    return DIFFICULTIES[state.difficulty] || DIFFICULTIES.normal;
-  }
-
-  function currentPassScore() {
-    return difficultyConfig().pass;
-  }
-
-  function quizLength(mode) {
-    const config = difficultyConfig();
-    if (mode === 'practice') return config.practice;
-    if (mode === 'challenge') return config.challenge;
-    return config.review;
-  }
-
-  function buildPlan(days = state.planDays) {
-    const safeDays = Math.max(1, Math.min(TABLES, Number(days) || 1));
-    const base = Math.floor(TABLES / safeDays);
-    let extra = TABLES % safeDays;
-    let table = 1;
-    return Array.from({ length: safeDays }, () => {
-      const size = base + (extra-- > 0 ? 1 : 0);
-      return Array.from({ length: size }, () => table++);
-    });
-  }
-
   function todayTarget() {
-    const plan = buildPlan();
-    const index = Math.max(0, plan.findIndex(tables => tables.some(n => !levelState(n).completed)));
-    const tables = plan[index] || plan[plan.length - 1];
-    return { day: index + 1, totalDays: plan.length, tables, target: tables[tables.length - 1] };
+    const count = completedCount();
+    if (count < 3) return { day: 1, tables: '1, 2 y 3', target: 3 };
+    if (count < 7) return { day: 2, tables: '4, 5, 6 y 7', target: 7 };
+    return { day: 3, tables: '8, 9 y 10', target: 10 };
   }
 
   function renderHome() {
@@ -185,7 +149,7 @@
     main.innerHTML = `
       <section class="hero">
         <div class="hero-row">
-          <div><p class="eyebrow">${target.totalDays === 1 ? 'MISIÓN COMPLETA' : `ETAPA ${target.day} DE ${target.totalDays}`}</p><h1>¡Hola, ${escapeHtml(state.playerName || 'campeón')}!</h1><p>${done === TABLES ? '¡Dominaste todos los mundos! Seguí repasando para que no se escape ninguna tabla.' : `Tu misión: conquistar ${formatTables(target.tables)}.`}</p></div>
+          <div><p class="eyebrow">DÍA ${target.day} DE 3</p><h1>¡Hola, ${escapeHtml(state.playerName || 'campeón')}!</h1><p>${done === TABLES ? '¡Dominaste todos los mundos! Seguí repasando para que no se escape ninguna tabla.' : `Tu misión de hoy: conquistar las tablas ${target.tables}.`}</p></div>
           <div class="goal-ring" style="--progress:${goal * 120}deg"><div class="goal-ring-inner"><strong>${goal}/3</strong><small>SESIONES</small></div></div>
         </div>
       </section>
@@ -202,15 +166,8 @@
   function stageSubtitle(n) {
     const l = levelState(n);
     if (!l.learned) return 'Primero descubrimos cómo funciona';
-    if (l.practiceBest < currentPassScore()) return 'Práctica solo esta tabla';
+    if (l.practiceBest < PASS_SCORE) return 'Práctica solo esta tabla';
     return 'Desafío mezclado con tablas anteriores';
-  }
-
-  function formatTables(tables) {
-    const labels = tables.map(String);
-    if (labels.length === 1) return `la tabla ${labels[0]}`;
-    if (labels.length === 2) return `las tablas ${labels.join(' y ')}`;
-    return `las tablas ${labels.slice(0, -1).join(', ')} y ${labels.at(-1)}`;
   }
 
   function levelProgress(n) {
@@ -221,15 +178,15 @@
 
   function openLevel(n) {
     const l = levelState(n);
-    modalRoot.innerHTML = `<div class="modal-backdrop">
+    modalRoot.innerHTML = `<div class="modal-backdrop" data-modal-backdrop>
       <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="level-title">
         <div class="mascot"><span>${n}</span></div>
         <p class="eyebrow">NIVEL ${n}</p><h2 id="level-title">Tabla del ${n}</h2>
         <p>Para dominarla, completá las tres etapas en orden.</p>
         <div class="stage-list">
           ${stageItem('👀', '1. Descubrir', 'Mirá patrones y entendé cada cuenta.', l.learned, !l.learned, 'start-learn', n)}
-           ${stageItem('🎯', '2. Practicar', `${quizLength('practice')} ejercicios solo de esta tabla · mínimo ${currentPassScore()}%.`, l.practiceBest >= currentPassScore(), l.learned && l.practiceBest < currentPassScore(), 'start-practice', n, l.practiceBest)}
-           ${stageItem('🧠', '3. Desafío mixto', `${quizLength('challenge')} ejercicios con tablas del 1 al ${n} · mínimo ${currentPassScore()}%.`, l.completed, l.practiceBest >= currentPassScore() && !l.completed, 'start-challenge', n, l.challengeBest)}
+          ${stageItem('🎯', '2. Practicar', '10 ejercicios solo de esta tabla · mínimo 80%.', l.practiceBest >= PASS_SCORE, l.learned && l.practiceBest < PASS_SCORE, 'start-practice', n, l.practiceBest)}
+          ${stageItem('🧠', '3. Desafío mixto', `12 ejercicios con tablas del 1 al ${n} · mínimo 80%.`, l.completed, l.practiceBest >= PASS_SCORE && !l.completed, 'start-challenge', n, l.challengeBest)}
         </div>
         ${l.completed ? `<button class="primary-btn full" data-action="start-challenge" data-level="${n}">Volver a jugar</button>` : ''}
         <button class="link-btn" data-action="close-modal" style="margin-top:16px">Cerrar</button>
@@ -260,10 +217,10 @@
       <div class="screen-head"><button class="icon-btn" data-action="exit-lesson" aria-label="Salir">✕</button><div><h1>Descubrí la tabla del ${table}</h1><p>Paso ${step + 1} de 10</p></div></div>
       <section class="lesson-card">
         <div class="mascot"><span>${table}</span></div>
-        <p class="eyebrow">TABLA DEL ${table} · REPETIR ${factor} ${factor === 1 ? 'VEZ' : 'VECES'}</p>
-        <div class="fact-big factor-equation"><span class="factor-block factor-table"><span>${table}</span><small>NÚMERO QUE REPETIMOS</small></span><b>×</b><span class="factor-block factor-times"><span>${factor}</span><small>CANTIDAD DE VECES</small></span><b>=</b><span class="fact-result">${result}</span></div>
+        <p class="eyebrow">SUMAR ${table}, ${factor} ${factor === 1 ? 'VEZ' : 'VECES'}</p>
+        <div class="fact-big">${table} × ${factor} = <span class="fact-result">${result}</span></div>
         <div class="number-groups">${Array.from({ length: factor }, () => `<span class="number-group">${table}</span>`).join('<span aria-hidden="true">+</span>')}</div>
-        <h2>${lessonTip(table, factor)}</h2><p class="factor-sentence">Multiplicamos <strong class="table-color">${table}</strong> por <strong class="times-color">${factor}</strong>:<br>repetimos el <strong class="table-color">${table}</strong>, <strong class="times-color">${factor} ${factor === 1 ? 'vez' : 'veces'}</strong>.</p>
+        <h2>${lessonTip(table, factor)}</h2><p>${table} multiplicado por ${factor} es lo mismo que sumar ${table} ${factor} ${factor === 1 ? 'vez' : 'veces'}.</p>
         <div class="lesson-actions">
           <button class="secondary-btn" data-action="lesson-back" ${step === 0 ? 'disabled' : ''}>← Anterior</button>
           <button class="primary-btn" data-action="lesson-next">${step === 9 ? '¡Listo para practicar!' : 'Entendido →'}</button>
@@ -312,8 +269,8 @@
 
   function startQuiz(mode, table) {
     modalRoot.innerHTML = '';
-    const count = quizLength(mode);
-    quiz = { mode, table, questions: buildQuestionSet(mode, table, count), index: 0, correct: 0, answerStreak: 0, bestStreak: 0, answered: false, mistakes: [], responses: [] };
+    const count = mode === 'practice' ? PRACTICE_LENGTH : mode === 'challenge' ? CHALLENGE_LENGTH : REVIEW_LENGTH;
+    quiz = { mode, table, questions: buildQuestionSet(mode, table, count), index: 0, correct: 0, answerStreak: 0, bestStreak: 0, answered: false, mistakes: [] };
     view = 'quiz';
     setActiveNav(mode === 'review' ? 'review' : '');
     renderQuiz();
@@ -377,44 +334,29 @@
       </div>
       <div class="quiz-body">
         <p class="prompt-label">${quiz.mode === 'practice' ? `Practicá la tabla del ${quiz.table}` : quiz.mode === 'challenge' ? 'Desafío: ¡ahora están mezcladas!' : 'Repaso inteligente'}</p>
-        <div class="question-card"><div class="question">${q.a} × ${q.b} = <span class="question-mark">?</span></div></div>
-        ${state.answerMode === 'input'
-          ? `<form class="manual-answer" data-quiz-form><label for="manual-value">Escribí el resultado</label><div><input id="manual-value" inputmode="numeric" pattern="[0-9]*" min="1" max="100" maxlength="3" autocomplete="off" aria-label="Resultado de ${q.a} por ${q.b}"><button type="submit" class="primary-btn">Comprobar</button></div></form>`
-          : `<div class="answers">${q.choices.map((answer, i) => `<button class="answer-btn" data-action="answer" data-value="${answer}" aria-label="Respuesta ${answer}"><small>${i + 1}</small>&nbsp; ${answer}</button>`).join('')}</div>`}
+        <div class="question">${q.a} × ${q.b} = <span class="question-mark">?</span></div>
+        <div class="answers" aria-label="Opciones de respuesta">${q.choices.map((answer, i) => {
+          const label = ANSWER_LABELS[i];
+          return `<div class="answer-option"><span class="answer-label" aria-hidden="true">${label}</span><button class="answer-btn" data-action="answer" data-value="${answer}" aria-label="Opción ${label}: ${answer}" aria-keyshortcuts="${label}">${answer}</button></div>`;
+        }).join('')}</div>
         <div id="feedback-slot"></div>
       </div>
     </section>`;
     main.focus({ preventScroll: true });
-    document.getElementById('manual-value')?.focus();
   }
 
   function answerQuestion(value) {
     if (quiz.answered) return;
-    const numericValue = Number(value);
-    if (!Number.isInteger(numericValue) || numericValue < 1 || numericValue > 100) {
-      const input = document.getElementById('manual-value');
-      input?.setAttribute('aria-invalid', 'true');
-      input?.focus();
-      showToast('Escribí un número entre 1 y 100');
-      return;
-    }
     quiz.answered = true;
     const q = quiz.questions[quiz.index];
-    const correct = numericValue === q.correct;
-    quiz.responses.push({ a: q.a, b: q.b, answer: numericValue, correctAnswer: q.correct, correct });
+    const correct = Number(value) === q.correct;
     const buttons = [...document.querySelectorAll('.answer-btn')];
     buttons.forEach(button => {
       button.disabled = true;
       const v = Number(button.dataset.value);
       if (v === q.correct) button.classList.add('correct');
-       else if (v === numericValue) button.classList.add('wrong');
+      else if (v === Number(value)) button.classList.add('wrong');
     });
-    const manual = document.getElementById('manual-value');
-    if (manual) {
-      manual.disabled = true;
-      manual.classList.add(correct ? 'correct' : 'wrong');
-      manual.closest('form')?.querySelector('button')?.setAttribute('disabled', '');
-    }
     state.totalAnswers++;
     if (correct) {
       quiz.correct++;
@@ -425,17 +367,15 @@
       state.xp += 2 + Math.min(3, Math.floor(quiz.answerStreak / 3));
       updateFact(q.a, q.b, true);
       playTone('good');
-      launchFireworks('mini');
     } else {
       quiz.answerStreak = 0;
       quiz.mistakes.push(q);
       updateFact(q.a, q.b, false);
       playTone('bad');
     }
-    animateAnswer(correct);
     saveState();
     const feedback = document.getElementById('feedback-slot');
-    feedback.innerHTML = `<div class="feedback ${correct ? 'good' : 'bad'}"><span class="feedback-face" aria-hidden="true">${correct ? '🌟' : '💪'}</span><div><h3>${correct ? praise() : 'Casi, ¡seguimos!'}</h3><p>${correct ? `${q.a} × ${q.b} = ${q.correct}` : `Tu respuesta: ${numericValue}. La correcta es ${q.correct}. Pensá: ${Array.from({length:q.b},()=>q.a).join(' + ')}.`}</p></div><button class="primary-btn" data-action="next-question">Continuar</button></div>`;
+    feedback.innerHTML = `<div class="feedback ${correct ? 'good' : 'bad'}"><div><h3>${correct ? praise() : 'Casi, ¡seguimos!'}</h3><p>${correct ? `${q.a} × ${q.b} = ${q.correct}` : `La respuesta es ${q.correct}. Pensá: ${Array.from({length:q.b},()=>q.a).join(' + ')}.`}</p></div><button class="primary-btn" data-action="next-question">Continuar</button></div>`;
     feedback.querySelector('button').focus();
   }
 
@@ -456,8 +396,7 @@
 
   function finishQuiz() {
     const score = Math.round(quiz.correct / quiz.questions.length * 100);
-    const passScore = currentPassScore();
-    const passed = quiz.mode === 'review' || score >= passScore;
+    const passed = quiz.mode === 'review' || score >= PASS_SCORE;
     const earnedStars = quiz.mode === 'review' ? (score >= 80 ? 1 : 0) : passed ? (score === 100 ? 3 : score >= 90 ? 2 : 1) : 0;
     const table = quiz.table;
     if (quiz.mode === 'practice') {
@@ -473,7 +412,7 @@
     state.sessionsToday = Math.min(3, state.sessionsToday + 1);
     unlockBadges();
     saveState();
-    if (passed && quiz.mode !== 'review') launchFireworks('grand');
+    if (passed && quiz.mode !== 'review') launchConfetti();
     playTone(passed ? 'win' : 'bad');
     renderResults(score, passed, earnedStars);
   }
@@ -489,7 +428,7 @@
       ? 'Cada repaso hace que las respuestas aparezcan más rápido.'
       : passed
         ? (mode === 'practice' ? 'Ahora podés probar el desafío con tablas mezcladas.' : quiz.table === TABLES ? '¡Dominaste las 10 tablas! Sos una leyenda de la multiplicación.' : `Desbloqueaste la tabla del ${quiz.table + 1}.`)
-         : `Necesitás ${currentPassScore()}%. Repasaremos tus errores para que el próximo intento sea mejor.`;
+        : `Necesitás ${PASS_SCORE}%. Repasaremos tus errores para que el próximo intento sea mejor.`;
     main.innerHTML = `<section class="result-card">
       <div class="result-emoji" aria-hidden="true">${passed ? (score === 100 ? '👑' : '🎉') : '💪'}</div>
       <p class="eyebrow">${mode === 'review' ? 'REPASO' : `TABLA DEL ${quiz.table}`}</p><h1>${title}</h1><p>${message}</p>
@@ -499,13 +438,8 @@
         <div class="result-stat"><strong>${quiz.bestStreak} 🔥</strong><small>mejor racha</small></div>
         <div class="result-stat"><strong>${quiz.mistakes.length}</strong><small>para repasar</small></div>
       </div>
-      ${quiz.mode === 'challenge' ? renderAnswerReview() : ''}
       ${resultActions(score, passed)}
     </section>`;
-  }
-
-  function renderAnswerReview() {
-    return `<section class="answer-review" aria-labelledby="answer-review-title"><div class="answer-review-head"><div><h2 id="answer-review-title">Así te fue, operación por operación</h2><p>Revisá qué salió bien y qué conviene practicar.</p></div><span>${quiz.correct}/${quiz.responses.length}</span></div><div class="answer-review-list">${quiz.responses.map((item, index) => `<div class="answer-review-row ${item.correct ? 'is-correct' : 'is-wrong'}"><span class="review-index">${index + 1}</span><strong>${item.a} × ${item.b} = ${item.correctAnswer}</strong><span>Tu respuesta: <b>${item.answer}</b></span><i aria-label="${item.correct ? 'Correcta' : 'Incorrecta'}">${item.correct ? '✓' : '✕'}</i></div>`).join('')}</div></section>`;
   }
 
   function resultActions(score, passed) {
@@ -519,7 +453,7 @@
     const errors = quiz.mistakes.length ? quiz.mistakes : quiz.questions;
     const mode = quiz.mode;
     const table = quiz.table;
-    quiz = { mode, table, questions: shuffle([...errors, ...errors]).slice(0, Math.max(6, errors.length)), index: 0, correct: 0, answerStreak: 0, bestStreak: 0, answered: false, mistakes: [], responses: [] };
+    quiz = { mode, table, questions: shuffle([...errors, ...errors]).slice(0, Math.max(6, errors.length)), index: 0, correct: 0, answerStreak: 0, bestStreak: 0, answered: false, mistakes: [] };
     renderQuiz();
   }
 
@@ -588,10 +522,11 @@
   function renderPlan() {
     view = 'plan';
     setActiveNav('plan');
-    const plan = buildPlan();
-    main.innerHTML = `<div class="screen-head plan-heading"><div><h1>📅 ${plan.length === 1 ? 'Todo en una misión' : `Misión de ${plan.length} días`}</h1><p>${plan.length === 1 ? 'Las 10 tablas están disponibles como un recorrido continuo.' : 'Las tablas se reparten de forma equilibrada, siempre en orden.'}</p></div><button class="secondary-btn compact" data-action="change-plan">Cambiar plan</button></div>
+    main.innerHTML = `<div class="screen-head"><div><h1>📅 Misión de 3 días</h1><p>Intensiva, pero en bloques cortos para cuidar la atención.</p></div></div>
       <div class="plan-grid">
-        ${plan.map((tables, index) => dayCard(index + 1, planTitle(index, plan.length), planText(index, plan.length), tables)).join('')}
+        ${dayCard(1, 'Bases y confianza', 'Tablas fáciles para entender el patrón y ganar velocidad.', [1,2,3])}
+        ${dayCard(2, 'Construir conexiones', 'Usamos dobles, mitades y las tablas ya aprendidas.', [4,5,6,7])}
+        ${dayCard(3, 'El gran desafío', 'Patrones del 9 y 10, mezcla total y consolidación.', [8,9,10])}
       </div>
       <section class="panel" style="margin-top:16px"><h2>Ritmo recomendado por día</h2><div class="schedule">
         <span class="schedule-time">Mañana</span><p><strong>15–20 min · Aprender</strong><br><small>Nuevas tablas, sin apuro. Pausa de 5 min al terminar.</small></p>
@@ -601,23 +536,9 @@
       <section class="panel"><h3>Consejos para el adulto</h3><p class="subtle">Celebrá el esfuerzo, no solo el resultado. Si aparecen frustración o muchos errores seguidos, conviene una pausa. En tres días se puede lograr mucha práctica; para retener de verdad, continuá con repasos breves durante las semanas siguientes.</p></section>`;
   }
 
-  function planTitle(index, total) {
-    if (total === 1) return 'La aventura completa';
-    if (index === 0) return 'Bases y confianza';
-    if (index === total - 1) return 'El gran desafío';
-    return 'Construir conexiones';
-  }
-
-  function planText(index, total) {
-    if (total === 1) return 'Avanzá a tu ritmo y hacé pausas cuando las necesites.';
-    if (index === 0) return 'Empezamos con patrones claros y ganamos velocidad.';
-    if (index === total - 1) return 'Mezcla total y consolidación de lo aprendido.';
-    return 'Sumamos nuevas tablas y reforzamos las anteriores.';
-  }
-
   function dayCard(day, title, text, tables) {
     const done = tables.filter(n => levelState(n).completed).length;
-    return `<section class="day-card"><p class="eyebrow">${state.planDays === 1 ? 'UNA SESIÓN' : `DÍA ${day}`} · ${done}/${tables.length} COMPLETADAS</p><h2>${title}</h2><p>${text}</p><div class="day-tables">${tables.map(n => `<span>${levelState(n).completed ? '✓ ' : ''}Tabla ${n}</span>`).join('')}</div></section>`;
+    return `<section class="day-card"><p class="eyebrow">DÍA ${day} · ${done}/${tables.length} COMPLETADAS</p><h2>${title}</h2><p>${text}</p><div class="day-tables">${tables.map(n => `<span>${levelState(n).completed ? '✓ ' : ''}Tabla ${n}</span>`).join('')}</div></section>`;
   }
 
   const badgeDefs = [
@@ -645,32 +566,12 @@
     main.innerHTML = `<div class="screen-head"><div><h1>🏆 Sala de premios</h1><p>Todo lo que lograste con práctica y constancia.</p></div></div>
       <section class="panel reward-summary"><div class="big">👑</div><div><p class="eyebrow">AVENTURERO NIVEL ${completedCount() + 1}</p><h2>${escapeHtml(state.playerName || 'Jugador')}</h2><p class="subtle">${state.xp} XP · ${state.stars} estrellas · ${accuracy}% de aciertos</p></div></section>
       <div class="section-head"><div><h2>Insignias</h2><p>${state.badges.length} de ${badgeDefs.length} desbloqueadas</p></div></div>
-      <section class="badge-grid">${badgeDefs.map(b => `<article class="badge ${state.badges.includes(b.id) ? '' : 'locked-badge'}"><div class="badge-icon">${b.icon}</div><h3>${b.title}</h3><p>${b.text}</p></article>`).join('')}</section>`;
-  }
-
-  function renderSettings() {
-    view = 'settings';
-    setActiveNav('settings');
-    const config = difficultyConfig();
-    main.innerHTML = `<div class="screen-head"><div><h1>⚙️ Ajustes</h1><p>Elegí cómo quiere jugar y aprender.</p></div></div>
-      <section class="panel"><h2>Forma de responder</h2><p class="subtle">Se puede cambiar en cualquier momento.</p><div class="setting-choice-grid">
-        ${settingChoice('choice', '🔢', 'Opciones', 'Elegir una de cuatro respuestas.', state.answerMode, 'set-answer-mode')}
-        ${settingChoice('input', '✏️', 'Escribir', 'Completar el resultado a mano.', state.answerMode, 'set-answer-mode')}
-      </div></section>
-      <section class="panel"><h2>Nivel de dificultad</h2><p class="subtle">Cambia la cantidad de cuentas y el puntaje mínimo.</p><div class="setting-choice-grid three">
-        ${settingChoice('calm', '🌱', 'Tranquilo', '8–10 cuentas · 70%', state.difficulty, 'set-difficulty')}
-        ${settingChoice('normal', '🚀', 'Normal', '10–12 cuentas · 80%', state.difficulty, 'set-difficulty')}
-        ${settingChoice('expert', '⚡', 'Experto', '12–15 cuentas · 90%', state.difficulty, 'set-difficulty')}
-      </div><p class="setting-summary">Ahora: <strong>${config.label}</strong> · mínimo ${config.pass}% para avanzar.</p></section>
-      <section class="panel"><div class="settings-row"><span><strong>Sonidos</strong><br><small class="subtle">Melodías y efectos al responder</small></span><button class="toggle ${state.sound ? 'on' : ''}" data-action="toggle-sound" role="switch" aria-checked="${state.sound}"><span></span></button></div>
-        <div class="settings-row"><span><strong>Animaciones</strong><br><small class="subtle">Fuegos artificiales y movimientos</small></span><button class="toggle ${state.animations ? 'on' : ''}" data-action="toggle-animations" role="switch" aria-checked="${state.animations}"><span></span></button></div>
-        <div class="settings-row"><span><strong>Plan de aprendizaje</strong><br><small class="subtle">${state.planDays === 1 ? 'Todo de una vez' : `Distribuido en ${state.planDays} días`}</small></span><button class="secondary-btn compact" data-action="change-plan">Cambiar</button></div>
+      <section class="badge-grid">${badgeDefs.map(b => `<article class="badge ${state.badges.includes(b.id) ? '' : 'locked-badge'}"><div class="badge-icon">${b.icon}</div><h3>${b.title}</h3><p>${b.text}</p></article>`).join('')}</section>
+      <div class="section-head"><div><h2>Ajustes</h2></div></div>
+      <section class="panel">
+        <div class="settings-row"><span><strong>Sonidos</strong><br><small class="subtle">Efectos al responder</small></span><button class="toggle ${state.sound ? 'on' : ''}" data-action="toggle-sound" role="switch" aria-checked="${state.sound}"><span></span></button></div>
         <div class="settings-row"><span><strong>Reiniciar aventura</strong><br><small class="subtle">Borra el progreso de este dispositivo</small></span><button class="danger-btn" data-action="confirm-reset">Reiniciar</button></div>
       </section>`;
-  }
-
-  function settingChoice(value, icon, title, text, selected, action) {
-    return `<button class="setting-choice ${selected === value ? 'selected' : ''}" data-action="${action}" data-value="${value}" aria-pressed="${selected === value}"><span>${icon}</span><strong>${title}</strong><small>${text}</small></button>`;
   }
 
   function confirmReset() {
@@ -681,43 +582,6 @@
     const template = document.getElementById('welcome-template');
     modalRoot.appendChild(template.content.cloneNode(true));
     setTimeout(() => document.getElementById('player-name')?.focus(), 50);
-  }
-
-  function showPlanSetup(onboarding = false) {
-    planDraft = { days: state.planDays >= 1 ? state.planDays : 3, onboarding };
-    renderPlanSetup();
-  }
-
-  function renderPlanSetup() {
-    const days = planDraft.days;
-    const distribution = buildPlan(days);
-    modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal-card plan-modal" role="dialog" aria-modal="true" aria-labelledby="plan-modal-title">
-      <div class="plan-modal-icon" aria-hidden="true">📅</div><p class="eyebrow">ANTES DE EMPEZAR</p><h2 id="plan-modal-title">¿Cómo quieren organizar la aventura?</h2><p>El contenido es el mismo; solo cambia cómo se reparte.</p>
-      <div class="plan-options">
-        <button class="plan-option ${days === 1 ? 'selected' : ''}" data-action="choose-plan" data-value="1" aria-pressed="${days === 1}"><span>⚡</span><strong>Todo de una vez</strong><small>Una misión con las 10 tablas.</small></button>
-        <button class="plan-option ${days > 1 ? 'selected' : ''}" data-action="choose-plan" data-value="3" aria-pressed="${days > 1}"><span>🌈</span><strong>En varios días</strong><small>Un poco cada día.</small></button>
-      </div>
-      ${days > 1 ? `<label class="days-label" for="plan-days">Cantidad de días</label><select id="plan-days" class="days-select" data-action="select-plan-days">${Array.from({ length: 9 }, (_, i) => i + 2).map(n => `<option value="${n}" ${n === days ? 'selected' : ''}>${n} días</option>`).join('')}</select>` : ''}
-      <div class="plan-preview"><strong>Así queda:</strong> ${distribution.map((tables, i) => `<span>${days === 1 ? 'Misión' : `Día ${i + 1}`}: ${tables.join(', ')}</span>`).join('')}</div>
-      <button class="primary-btn full" data-action="save-plan">${planDraft.onboarding ? '¡Empezar aventura!' : 'Guardar plan'}</button>
-      ${planDraft.onboarding ? '' : '<button class="link-btn" data-action="close-modal" style="margin-top:16px">Cancelar</button>'}
-    </section></div>`;
-  }
-
-  function savePlan() {
-    const select = document.getElementById('plan-days');
-    state.planDays = select ? Number(select.value) : planDraft.days;
-    state.planConfigured = true;
-    saveState();
-    const onboarding = planDraft.onboarding;
-    planDraft = null;
-    modalRoot.innerHTML = '';
-    if (onboarding) {
-      launchFireworks('grand');
-      playTone('win');
-    }
-    renderHome();
-    showToast(state.planDays === 1 ? '⚡ Plan: todo de una vez' : `📅 Plan guardado: ${state.planDays} días`);
   }
 
   function startGame() {
@@ -731,7 +595,9 @@
     }
     state.playerName = name.slice(0, 16);
     saveState();
-    showPlanSetup(true);
+    modalRoot.innerHTML = '';
+    launchConfetti();
+    renderHome();
   }
 
   function exitActivity() {
@@ -745,77 +611,50 @@
     showToast.timer = setTimeout(() => { root.innerHTML = ''; }, 2800);
   }
 
-  function animationsEnabled() {
-    return state.animations && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  }
-
-  function animateAnswer(correct) {
-    if (!animationsEnabled()) return;
-    const card = document.querySelector('.question-card');
-    const body = document.querySelector('.quiz-body');
-    card?.classList.add(correct ? 'answer-pop' : 'answer-shake');
-    body?.insertAdjacentHTML('beforeend', `<span class="reaction-bubble ${correct ? 'happy' : 'try-again'}" aria-hidden="true">${correct ? '✨ ¡Sí! ✨' : '💜 ¡Podés!'}</span>`);
-    setTimeout(() => {
-      card?.classList.remove('answer-pop', 'answer-shake');
-      document.querySelector('.reaction-bubble')?.remove();
-    }, 900);
-  }
-
-  function launchFireworks(size = 'mini') {
-    if (!animationsEnabled()) return;
+  function launchConfetti() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const root = document.getElementById('confetti');
     const colors = ['#6c4cff','#30c97b','#ffc83d','#ff5e71','#37a9ff'];
-    const bursts = size === 'grand' ? [[22,28],[50,18],[78,30],[35,48],[67,49]] : [[50,38]];
-    const sparks = bursts.map(([x, y], burst) => Array.from({ length: size === 'grand' ? 18 : 14 }, (_, i) => {
-      const angle = (Math.PI * 2 * i) / (size === 'grand' ? 18 : 14);
-      const distance = (size === 'grand' ? 90 : 58) + Math.random() * (size === 'grand' ? 65 : 25);
-      return `<i class="firework-spark" style="left:${x}%;top:${y}%;background:${colors[(i + burst) % colors.length]};--dx:${Math.cos(angle) * distance}px;--dy:${Math.sin(angle) * distance}px;animation-delay:${burst * .12}s"></i>`;
-    }).join('')).join('');
-    const confetti = size === 'grand' ? Array.from({ length: 70 }, (_, i) => `<i class="confetti-piece" style="left:${Math.random()*100}%;background:${colors[i%colors.length]};--drift:${(Math.random()-.5)*180}px;animation-delay:${Math.random()*.45}s"></i>`).join('') : '';
-    root.innerHTML = sparks + confetti;
-    clearTimeout(launchFireworks.timer);
-    launchFireworks.timer = setTimeout(() => { root.innerHTML = ''; }, size === 'grand' ? 2600 : 1050);
+    root.innerHTML = Array.from({ length: 55 }, (_, i) => `<i class="confetti-piece" style="left:${Math.random()*100}%;background:${colors[i%colors.length]};--drift:${(Math.random()-.5)*180}px;animation-delay:${Math.random()*.35}s"></i>`).join('');
+    setTimeout(() => { root.innerHTML = ''; }, 2300);
   }
 
   function playTone(type) {
     if (!state.sound) return;
     try {
       audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
-      audioContext.resume?.();
-      const sequences = {
-        good: [[659, 0, .10], [784, .08, .11], [988, .17, .18]],
-        bad: [[294, 0, .14], [247, .13, .20]],
-        win: [[523, 0, .16], [659, .12, .16], [784, .24, .18], [1047, .40, .34]]
-      };
-      (sequences[type] || sequences.good).forEach(([frequency, delay, duration], i) => {
+      const frequencies = type === 'good' ? [440, 554] : type === 'win' ? [392, 523, 659] : [220, 180];
+      frequencies.forEach((frequency, i) => {
         const oscillator = audioContext.createOscillator();
         const gain = audioContext.createGain();
         oscillator.connect(gain); gain.connect(audioContext.destination);
-        oscillator.type = type === 'bad' ? 'sine' : (i % 2 ? 'triangle' : 'sine');
+        oscillator.type = type === 'bad' ? 'triangle' : 'sine';
         oscillator.frequency.value = frequency;
-        const start = audioContext.currentTime + delay;
-        const volume = type === 'bad' ? .045 : type === 'win' ? .09 : .075;
+        const start = audioContext.currentTime + i * .1;
         gain.gain.setValueAtTime(.001, start);
-        gain.gain.exponentialRampToValueAtTime(volume, start + .018);
-        gain.gain.exponentialRampToValueAtTime(.001, start + duration);
-        oscillator.start(start); oscillator.stop(start + duration + .02);
+        gain.gain.exponentialRampToValueAtTime(.12, start + .015);
+        gain.gain.exponentialRampToValueAtTime(.001, start + .13);
+        oscillator.start(start); oscillator.stop(start + .14);
       });
     } catch (_) { /* Audio is optional. */ }
   }
 
   document.addEventListener('click', event => {
+    if (event.target.matches('[data-modal-backdrop]')) {
+      modalRoot.innerHTML = '';
+      return;
+    }
     const button = event.target.closest('[data-action]');
     if (!button || button.disabled) return;
     const action = button.dataset.action;
     const n = Number(button.dataset.level);
     const actions = {
-      home: () => { modalRoot.innerHTML = ''; planDraft = null; renderHome(); },
+      home: () => { modalRoot.innerHTML = ''; renderHome(); },
       review: renderReview,
       plan: renderPlan,
       rewards: renderRewards,
-      settings: renderSettings,
       'open-level': () => openLevel(n),
-      'close-modal': () => { modalRoot.innerHTML = ''; planDraft = null; },
+      'close-modal': () => { modalRoot.innerHTML = ''; },
       'start-game': startGame,
       'start-learn': () => startLesson(n),
       'start-practice': () => startQuiz('practice', n),
@@ -828,60 +667,34 @@
       answer: () => answerQuestion(button.dataset.value),
       'next-question': nextQuestion,
       'retry-quiz': retryQuiz,
-      'change-plan': () => showPlanSetup(false),
-      'choose-plan': () => { planDraft.days = Number(button.dataset.value) === 1 ? 1 : (planDraft.days > 1 ? planDraft.days : 3); renderPlanSetup(); },
-      'save-plan': savePlan,
-      'set-answer-mode': () => { state.answerMode = button.dataset.value; saveState(); renderSettings(); showToast(state.answerMode === 'choice' ? '🔢 Respuestas con opciones' : '✏️ Respuestas escritas'); },
-      'set-difficulty': () => { state.difficulty = button.dataset.value; saveState(); renderSettings(); showToast(`Nivel ${difficultyConfig().label}`); },
-      'toggle-sound': () => { state.sound = !state.sound; saveState(); renderSettings(); if (state.sound) playTone('good'); },
-      'toggle-animations': () => { state.animations = !state.animations; saveState(); renderSettings(); },
+      'toggle-sound': () => { state.sound = !state.sound; saveState(); renderRewards(); },
       'confirm-reset': confirmReset,
-      'reset-game': () => { state = defaultState(); planDraft = null; localStorage.removeItem(STORAGE_KEY); modalRoot.innerHTML = ''; renderHome(); showWelcome(); }
+      'reset-game': () => { state = defaultState(); localStorage.removeItem(STORAGE_KEY); modalRoot.innerHTML = ''; renderHome(); showWelcome(); }
     };
     actions[action]?.();
   });
 
-  document.addEventListener('submit', event => {
-    if (!event.target.matches('[data-quiz-form]')) return;
-    event.preventDefault();
-    answerQuestion(document.getElementById('manual-value')?.value);
-  });
-
-  document.addEventListener('change', event => {
-    if (event.target.id !== 'plan-days' || !planDraft) return;
-    planDraft.days = Number(event.target.value);
-    renderPlanSetup();
-  });
-
-  modalRoot.addEventListener('click', event => {
-    if (event.target.classList.contains('modal-backdrop') && !planDraft?.onboarding) {
-      modalRoot.innerHTML = '';
-      planDraft = null;
-    }
-  });
-
   document.addEventListener('keydown', event => {
-    if (view === 'quiz' && state.answerMode === 'choice' && !quiz?.answered && ['1','2','3','4'].includes(event.key)) {
-      const button = document.querySelectorAll('.answer-btn')[Number(event.key) - 1];
+    const answerKey = event.key.toUpperCase();
+    if (view === 'quiz' && !quiz?.answered && ANSWER_LABELS.includes(answerKey)) {
+      const button = document.querySelectorAll('.answer-btn')[ANSWER_LABELS.indexOf(answerKey)];
       button?.click();
     } else if (view === 'quiz' && quiz?.answered && event.key === 'Enter') {
       document.querySelector('[data-action="next-question"]')?.click();
-    } else if (event.key === 'Escape' && modalRoot.innerHTML && !planDraft?.onboarding) {
+    } else if (event.key === 'Escape' && modalRoot.innerHTML) {
       modalRoot.innerHTML = '';
-      planDraft = null;
     } else if (event.key === 'Enter' && document.activeElement?.id === 'player-name') {
       startGame();
     }
   });
 
   // Small public surface used by automated tests; gameplay stays dependency-free.
-  window.MultiplyEngine = { defaultState, makeQuestion, buildQuestionSet, buildPlan, shuffle, factKey, PASS_SCORE, DIFFICULTIES };
+  window.MultiplyEngine = { defaultState, makeQuestion, buildQuestionSet, shuffle, factKey, PASS_SCORE };
 
   updateVisitStreak();
   updateTopbar();
   renderHome();
   if (!state.playerName) showWelcome();
-  else if (!state.planConfigured) showPlanSetup(true);
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }

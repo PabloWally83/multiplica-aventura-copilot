@@ -9,15 +9,11 @@ Aplicación web estática, en español, para que un niño de 8 años practique l
 - Umbral de dominio del 80% para desbloquear el siguiente nivel.
 - Repetición espaciada de operaciones débiles y repaso inteligente.
 - XP, estrellas, rachas, insignias, confeti y progreso visual.
-- Plan flexible: todas las tablas de una vez o distribuidas entre 2 y 10 días.
-- Resultados operación por operación al terminar cada desafío mixto.
-- Respuestas configurables: opciones múltiples o ingreso manual.
-- Tres dificultades: Tranquilo (70%), Normal (80%) y Experto (90%).
-- Sonidos musicales, fuegos artificiales de acierto y celebración de nivel.
-- Pantalla independiente de Ajustes, accesible desde la navegación principal.
-- Explicaciones visuales que distinguen el número repetido de la cantidad de veces.
+- Plan intensivo de 3 días, sesiones breves y pausas sugeridas.
 - Persistencia en `localStorage`, funcionamiento offline y diseño responsive.
 - Sonido opcional y soporte para `prefers-reduced-motion`.
+- Opciones múltiples identificadas con **A, B, C y D fuera del recuadro de la respuesta**, para no confundir la etiqueta con el resultado.
+- Atajos de teclado `A`, `B`, `C` y `D` durante los ejercicios.
 
 ## Ejecutar localmente
 

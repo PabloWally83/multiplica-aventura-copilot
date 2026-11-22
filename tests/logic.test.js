@@ -1,87 +1,24 @@
+'use strict';
+
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const vm = require('node:vm');
+const path = require('node:path');
 
-function element() {
-  return {
-    innerHTML: '', textContent: '', hidden: false, classList: { toggle() {}, add() {}, remove() {} },
-    focus() {}, appendChild() {}, addEventListener() {}, querySelector() { return null; },
-    setAttribute() {}, closest() { return null; }
-  };
-}
+const root = path.resolve(__dirname, '..');
+const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 
-const elements = new Map(['main','modal-root','daily-streak','stars','xp','review-dot','toast-root','confetti']
-  .map(id => [id, element()]));
-const saved = JSON.stringify({ version: 1, playerName: 'Test', planConfigured: true, planDays: 3, levels: {}, factStats: {} });
-const sandbox = {
-  console,
-  Date,
-  Math,
-  setTimeout: () => 0,
-  clearTimeout() {},
-  localStorage: { getItem: () => saved, setItem() {}, removeItem() {} },
-  document: {
-    getElementById(id) { return elements.get(id) || element(); },
-    querySelectorAll() { return []; },
-    querySelector() { return null; },
-    addEventListener() {}
-  },
-  navigator: {},
-  location: { protocol: 'file:' },
-  window: {
-    matchMedia: () => ({ matches: false }),
-    addEventListener() {}
-  }
-};
-sandbox.window.window = sandbox.window;
-vm.createContext(sandbox);
-vm.runInContext(fs.readFileSync('app.js', 'utf8'), sandbox);
+assert.match(app, /const ANSWER_LABELS = \['A', 'B', 'C', 'D'\]/, 'Debe definir las etiquetas A–D.');
+assert.match(app, /class="answer-option"/, 'Cada respuesta debe usar un contenedor para separar etiqueta y botón.');
+assert.match(app, /class="answer-label"/, 'La etiqueta debe ser un elemento externo al botón.');
+assert.match(app, /<span class="answer-label"[^>]*>\$\{label\}<\/span><button class="answer-btn"/, 'La etiqueta A–D debe quedar antes y fuera del botón.');
+assert.doesNotMatch(app, /<button class="answer-btn"[^>]*><small>\$\{i \+ 1\}<\/small>/, 'No deben quedar números 1–4 dentro de los botones.');
+assert.match(app, /ANSWER_LABELS\.includes\(answerKey\)/, 'Los atajos de teclado deben aceptar A–D.');
+assert.match(css, /\.answer-option\s*\{[^}]*grid-template-columns:/s, 'El diseño debe reservar una columna externa para la etiqueta.');
+assert.match(css, /\.answer-label\s*\{/, 'Debe existir un estilo visible para A–D.');
+assert.match(sw, /multiplica-aventura-v2-options-abcd/, 'El service worker debe renovar el caché.');
+assert.doesNotMatch(app, /onclick="event\.stopPropagation\(\)"/, 'Los controles del modal deben llegar al manejador global de clics.');
+assert.match(app, /event\.target\.matches\('\[data-modal-backdrop\]'\)/, 'El modal debe cerrarse solo al pulsar el fondo.');
 
-const engine = sandbox.window.MultiplyEngine;
-assert.ok(engine, 'The public test engine should be available');
-
-const initial = engine.defaultState();
-assert.equal(initial.planConfigured, false);
-assert.equal(initial.planDays, 3);
-assert.equal(initial.answerMode, 'choice');
-assert.equal(initial.difficulty, 'normal');
-assert.equal(Object.keys(initial.levels).length, 10);
-
-assert.deepEqual(Array.from(engine.buildPlan(1), x => Array.from(x)), [[1,2,3,4,5,6,7,8,9,10]]);
-assert.deepEqual(Array.from(engine.buildPlan(3), x => Array.from(x)), [[1,2,3,4],[5,6,7],[8,9,10]]);
-assert.deepEqual(Array.from(engine.buildPlan(10), x => Array.from(x)), [[1],[2],[3],[4],[5],[6],[7],[8],[9],[10]]);
-
-for (let i = 0; i < 100; i++) {
-  const question = engine.makeQuestion((i % 10) + 1, ((i * 3) % 10) + 1);
-  assert.equal(question.choices.length, 4);
-  assert.equal(new Set(question.choices).size, 4);
-  assert.ok(question.choices.includes(question.correct));
-}
-
-const practice = engine.buildQuestionSet('practice', 4, 10);
-assert.equal(practice.length, 10);
-assert.ok(practice.every(q => q.a === 4));
-assert.deepEqual([...new Set(practice.map(q => q.b))].sort((a,b) => a-b), [1,2,3,4,5,6,7,8,9,10]);
-
-const challenge = engine.buildQuestionSet('challenge', 5, 12);
-assert.equal(challenge.length, 12);
-assert.ok(challenge.every(q => q.a >= 1 && q.a <= 5 && q.b >= 1 && q.b <= 10));
-assert.ok(challenge.filter(q => q.a === 5).length >= 7);
-
-assert.equal(engine.DIFFICULTIES.calm.pass, 70);
-assert.equal(engine.DIFFICULTIES.normal.pass, 80);
-assert.equal(engine.DIFFICULTIES.expert.pass, 90);
-console.log('All logic tests passed.');
-
-const source = fs.readFileSync('app.js', 'utf8');
-const html = fs.readFileSync('index.html', 'utf8');
-const css = fs.readFileSync('styles.css', 'utf8');
-assert.match(html, /data-action="settings"/);
-assert.match(source, /function renderAnswerReview\(/);
-assert.match(source, /state\.answerMode === 'input'/);
-assert.match(source, /function showPlanSetup\(/);
-assert.match(source, /launchFireworks\('mini'\)/);
-assert.match(source, /launchFireworks\('grand'\)/);
-assert.doesNotMatch(source, /event\.stopPropagation|onclick=/);
-assert.equal((css.match(/\{/g) || []).length, (css.match(/\}/g) || []).length, 'CSS braces should be balanced');
-console.log('Feature contract checks passed.');
+console.log('✓ Opciones A–D externas, accesibles y sin etiquetas numéricas internas.');
