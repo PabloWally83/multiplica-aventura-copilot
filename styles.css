@@ -101,6 +101,69 @@ button:focus-visible, input:focus-visible { outline: 4px solid rgba(55,169,255,.
 #toast-root{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:150}.toast{background:#29263b;color:white;padding:12px 17px;border-radius:13px;box-shadow:var(--shadow-strong);font-weight:800;animation:toastIn .25s ease;white-space:nowrap}@keyframes toastIn{from{transform:translateY(15px);opacity:0}}
 #confetti{position:fixed;inset:0;z-index:200;pointer-events:none;overflow:hidden}.confetti-piece{position:absolute;top:-20px;width:10px;height:16px;animation:fall 1.7s linear forwards}@keyframes fall{to{transform:translate(var(--drift),105vh) rotate(720deg)}}
 
+/* Dark mode */
+html[data-theme="dark"] {
+  --purple: #8b76ff;
+  --purple-dark: #6a54df;
+  --purple-soft: #302a55;
+  --green: #49dc93;
+  --green-dark: #67e5a7;
+  --yellow: #ffd15b;
+  --orange: #ff9c5b;
+  --red: #ff7485;
+  --blue: #65baff;
+  --ink: #f4f2fb;
+  --muted: #b9b5c9;
+  --line: #3c3850;
+  --surface: #211f31;
+  --bg: #15131f;
+  --shadow: 0 8px 24px rgba(0,0,0,.28);
+  --shadow-strong: 0 14px 34px rgba(0,0,0,.4);
+  background: var(--bg);
+}
+html[data-theme="dark"] body { background: radial-gradient(circle at 20% 0, #292445 0, transparent 27rem), var(--bg); }
+html[data-theme="dark"] .topbar { background: rgba(21,19,31,.9); }
+html[data-theme="dark"] .bottom-nav { background: rgba(33,31,49,.97); }
+html[data-theme="dark"] .brand { color: #b9adff; }
+html[data-theme="dark"] .stat-pill,
+html[data-theme="dark"] .daily-card,
+html[data-theme="dark"] .level-card,
+html[data-theme="dark"] .icon-btn,
+html[data-theme="dark"] .lesson-card,
+html[data-theme="dark"] .secondary-btn,
+html[data-theme="dark"] .answer-btn,
+html[data-theme="dark"] .result-card,
+html[data-theme="dark"] .score-inner,
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] .badge,
+html[data-theme="dark"] .welcome-card,
+html[data-theme="dark"] .modal-card,
+html[data-theme="dark"] .stage-item { background: var(--surface); color: var(--ink); }
+html[data-theme="dark"] .level-card { box-shadow: 0 5px 0 #0c0b12; }
+html[data-theme="dark"] .level-card:not(:disabled):hover { border-color:#7465b4; box-shadow:0 8px 0 #0c0b12; }
+html[data-theme="dark"] .level-card.current { background: linear-gradient(90deg,#292541,#211f31); box-shadow:0 6px 0 #3c326d; }
+html[data-theme="dark"] .level-card.done { box-shadow:0 5px 0 #24523e; }
+html[data-theme="dark"] .daily-icon { background:#3a321c; }
+html[data-theme="dark"] .number-group { background:#292541; border-color:#443b70; }
+html[data-theme="dark"] .answer-btn { box-shadow:0 5px 0 #0c0b12; }
+html[data-theme="dark"] .answer-btn:hover { border-color:#8273cb; }
+html[data-theme="dark"] .answer-btn.correct { background:#173c2b; border-color:var(--green); color:#87efba; box-shadow:0 5px 0 #0b2418; }
+html[data-theme="dark"] .answer-btn.wrong { background:#44212b; border-color:var(--red); color:#ff9eaa; box-shadow:0 5px 0 #2a1118; }
+html[data-theme="dark"] .feedback.good { background:#173c2b; color:#9af4c5; }
+html[data-theme="dark"] .feedback.bad { background:#44212b; color:#ffb0ba; }
+html[data-theme="dark"] .result-stat,
+html[data-theme="dark"] .review-fact { background:#191725; }
+html[data-theme="dark"] .welcome-card input { background:#181621; border-color:var(--line); color:var(--ink); }
+html[data-theme="dark"] .welcome-card input::placeholder { color:#858096; }
+html[data-theme="dark"] .danger-btn { background:#3d2027; border-color:#66303c; color:#ff9ba8; }
+html[data-theme="dark"] .toggle { background:#555166; }
+html[data-theme="dark"] .toggle.on { background:var(--green); }
+html[data-theme="dark"] .primary-btn { box-shadow:0 5px 0 #4935aa; }
+html[data-theme="dark"] .primary-btn:disabled { background:#555164; box-shadow:0 5px 0 #34313f; }
+html[data-theme="dark"] .welcome-backdrop,
+html[data-theme="dark"] .modal-backdrop { background:rgba(6,5,10,.78); }
+html[data-theme="dark"] .toast { background:#eeebf8; color:#211f31; }
+
 @media(max-width:600px){
   .topbar{height:64px;padding:0 14px}.brand span:last-child{display:none}.stat-pill{padding:6px 8px;min-width:52px}.stat-pills{gap:5px}#main{padding:12px 14px 35px}.hero{padding:20px}.goal-ring{width:72px;height:72px}.goal-ring-inner{width:55px;height:55px}.level-card{grid-template-columns:55px 1fr auto;padding:13px;gap:11px}.level-orb{width:55px;height:55px}.level-info p{font-size:.7rem}.lesson-card{padding:20px 15px}.lesson-actions{grid-template-columns:1fr}.answers{gap:10px 12px}.answer-option{grid-template-columns:29px minmax(0,1fr);gap:7px}.answer-label{width:29px;height:29px;font-size:.9rem}.answer-btn{min-height:72px}.question{margin-top:10px}.result-stats{gap:6px}.result-stat{padding:10px 4px}.badge-grid{grid-template-columns:1fr 1fr}.welcome-card{padding:23px 18px}.bottom-nav{height:72px;border-radius:18px 18px 0 0}}
 @media(max-width:390px){.answers{grid-template-columns:1fr}.answer-btn{min-height:62px}.quiz-body{padding-top:14px}.question{margin-bottom:17px}}

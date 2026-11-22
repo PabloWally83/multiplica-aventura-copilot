@@ -14,6 +14,7 @@ Aplicación web estática, en español, para que un niño de 8 años practique l
 - Sonido opcional y soporte para `prefers-reduced-motion`.
 - Opciones múltiples identificadas con **A, B, C y D fuera del recuadro de la respuesta**, para no confundir la etiqueta con el resultado.
 - Atajos de teclado `A`, `B`, `C` y `D` durante los ejercicios.
+- Modo oscuro configurable desde **Premios → Ajustes**, guardado automáticamente en el dispositivo.
 
 ## Ejecutar localmente
 

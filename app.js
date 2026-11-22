@@ -21,6 +21,7 @@
     sessionsToday: 0,
     sessionDate: localDateKey(),
     sound: true,
+    darkMode: false,
     unlocked: 1,
     levels: Object.fromEntries(Array.from({ length: TABLES }, (_, i) => [i + 1, {
       learned: false,
@@ -107,6 +108,13 @@
     document.getElementById('xp').textContent = state.xp;
     const due = getReviewFacts().length;
     document.getElementById('review-dot').hidden = due === 0;
+  }
+
+  function applyTheme() {
+    const dark = Boolean(state.darkMode);
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#171526' : '#6c4cff');
   }
 
   function setActiveNav(name) {
@@ -570,6 +578,7 @@
       <div class="section-head"><div><h2>Ajustes</h2></div></div>
       <section class="panel">
         <div class="settings-row"><span><strong>Sonidos</strong><br><small class="subtle">Efectos al responder</small></span><button class="toggle ${state.sound ? 'on' : ''}" data-action="toggle-sound" role="switch" aria-checked="${state.sound}"><span></span></button></div>
+        <div class="settings-row"><span><strong>Modo oscuro</strong><br><small class="subtle">Reduce el brillo de la pantalla</small></span><button class="toggle ${state.darkMode ? 'on' : ''}" data-action="toggle-dark-mode" role="switch" aria-checked="${state.darkMode}" aria-label="Activar o desactivar modo oscuro"><span></span></button></div>
         <div class="settings-row"><span><strong>Reiniciar aventura</strong><br><small class="subtle">Borra el progreso de este dispositivo</small></span><button class="danger-btn" data-action="confirm-reset">Reiniciar</button></div>
       </section>`;
   }
@@ -668,8 +677,9 @@
       'next-question': nextQuestion,
       'retry-quiz': retryQuiz,
       'toggle-sound': () => { state.sound = !state.sound; saveState(); renderRewards(); },
+      'toggle-dark-mode': () => { state.darkMode = !state.darkMode; applyTheme(); saveState(); renderRewards(); },
       'confirm-reset': confirmReset,
-      'reset-game': () => { state = defaultState(); localStorage.removeItem(STORAGE_KEY); modalRoot.innerHTML = ''; renderHome(); showWelcome(); }
+      'reset-game': () => { state = defaultState(); localStorage.removeItem(STORAGE_KEY); applyTheme(); modalRoot.innerHTML = ''; renderHome(); showWelcome(); }
     };
     actions[action]?.();
   });
@@ -691,6 +701,7 @@
   // Small public surface used by automated tests; gameplay stays dependency-free.
   window.MultiplyEngine = { defaultState, makeQuestion, buildQuestionSet, shuffle, factKey, PASS_SCORE };
 
+  applyTheme();
   updateVisitStreak();
   updateTopbar();
   renderHome();
