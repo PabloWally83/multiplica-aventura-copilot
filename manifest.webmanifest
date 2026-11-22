@@ -1,0 +1,10 @@
+{
+  "name": "Multiplica Aventura",
+  "short_name": "Multiplica",
+  "description": "Juego para dominar las tablas de multiplicar del 1 al 10",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f6fb",
+  "theme_color": "#6c4cff",
+  "icons": []
+}
