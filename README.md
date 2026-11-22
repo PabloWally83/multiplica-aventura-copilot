@@ -9,15 +9,15 @@ Aplicación web estática, en español, para que un niño de 8 años practique l
 - Umbral de dominio del 80% para desbloquear el siguiente nivel.
 - Repetición espaciada de operaciones débiles y repaso inteligente.
 - XP, estrellas, rachas, insignias, confeti y progreso visual.
-- Plan intensivo de 3 días, sesiones breves y pausas sugeridas.
+- Plan flexible: todas las tablas de una vez o distribuidas entre 2 y 10 días.
+- Resultados operación por operación al terminar cada desafío mixto.
+- Respuestas configurables: opciones múltiples o ingreso manual.
+- Tres dificultades: Tranquilo (70%), Normal (80%) y Experto (90%).
+- Sonidos musicales, fuegos artificiales de acierto y celebración de nivel.
+- Pantalla independiente de Ajustes, accesible desde la navegación principal.
+- Explicaciones visuales que distinguen el número repetido de la cantidad de veces.
 - Persistencia en `localStorage`, funcionamiento offline y diseño responsive.
 - Sonido opcional y soporte para `prefers-reduced-motion`.
-
-## Corrección 1.0.1
-
-- Los controles del modal de nivel funcionan mediante delegación de eventos, incluido **1. Descubrir**.
-- Los clics dentro del diálogo ya no se confunden con clics sobre el fondo oscuro.
-- El service worker toma la versión nueva de los archivos al publicar y conserva el modo offline como respaldo.
 
 ## Ejecutar localmente
 
@@ -38,8 +38,6 @@ También se puede abrir `index.html` directamente, aunque el modo offline necesi
 5. Desplegar.
 
 También puede ejecutarse `vercel` desde esta carpeta si la CLI está instalada.
-
-Después de reemplazar los archivos en GitHub, Vercel desplegará la corrección automáticamente. Si la aplicación ya estaba abierta, recargá la página una vez para activar el service worker actualizado.
 
 ## Privacidad
 

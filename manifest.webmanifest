@@ -1,11 +1,11 @@
 {
   "name": "Multiplica Aventura",
   "short_name": "Multiplica",
-  "description": "Juego educativo para dominar las tablas de multiplicar del 1 al 10.",
+  "description": "Juego educativo para aprender las tablas de multiplicar del 1 al 10.",
   "lang": "es",
   "start_url": "/",
-  "scope": "/",
   "display": "standalone",
   "background_color": "#f7f6fb",
-  "theme_color": "#6c4cff"
+  "theme_color": "#6c4cff",
+  "icons": []
 }
